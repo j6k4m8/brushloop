@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../core/media_picker.dart';
 import '../../core/models.dart';
 import '../../state/app_controller.dart';
 import '../../ui/studio_theme.dart';
@@ -686,6 +687,7 @@ class _CreateArtworkWithContactDialog extends StatefulWidget {
 class _CreateArtworkWithContactDialogState
     extends State<_CreateArtworkWithContactDialog> {
   final ImagePicker _picker = ImagePicker();
+  final bool _cameraSupported = supportsCameraCapture();
 
   ArtworkMode _mode = ArtworkMode.realTime;
   _InitialTurnChoice _firstTurnChoice = _InitialTurnChoice.me;
@@ -699,10 +701,9 @@ class _CreateArtworkWithContactDialogState
     });
 
     try {
-      final picked = await _picker.pickImage(
+      final picked = await pickArtworkImage(
+        picker: _picker,
         source: source,
-        maxWidth: 3000,
-        imageQuality: 95,
       );
 
       if (picked == null) {
@@ -859,9 +860,9 @@ class _CreateArtworkWithContactDialogState
                   children: <Widget>[
                     Expanded(
                       child: StudioButton(
-                        label: 'Camera',
+                        label: _cameraSupported ? 'Camera' : 'Camera (Unsupported)',
                         icon: Icons.photo_camera_outlined,
-                        onPressed: _isSubmitting || _isPickingPhoto
+                        onPressed: !_cameraSupported || _isSubmitting || _isPickingPhoto
                             ? null
                             : () => _pickPhoto(ImageSource.camera),
                       ),
@@ -878,6 +879,14 @@ class _CreateArtworkWithContactDialogState
                     ),
                   ],
                 ),
+                if (!_cameraSupported)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 8),
+                    child: Text(
+                      'Camera capture is currently supported on iOS/Android. Use Gallery on this platform.',
+                      style: TextStyle(fontSize: 11, color: StudioPalette.textMuted),
+                    ),
+                  ),
                 if (_isPickingPhoto)
                   const Padding(
                     padding: EdgeInsets.only(top: 8),
@@ -952,23 +961,4 @@ class _CreateArtworkWithContactDialogState
       ),
     );
   }
-}
-
-/// Infers a reasonable image MIME type from filename extension.
-String inferImageMimeType(String filename) {
-  final lower = filename.toLowerCase();
-  if (lower.endsWith('.png')) {
-    return 'image/png';
-  }
-  if (lower.endsWith('.webp')) {
-    return 'image/webp';
-  }
-  if (lower.endsWith('.gif')) {
-    return 'image/gif';
-  }
-  if (lower.endsWith('.heic')) {
-    return 'image/heic';
-  }
-
-  return 'image/jpeg';
 }
