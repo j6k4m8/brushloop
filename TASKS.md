@@ -36,5 +36,5 @@
 - [x] Task 34: Add chat gap timestamps and unread indicators for contact chats.
 - [x] Task 35: Add settings page with display-name update and move logout from home toolbar.
 - [x] Task 36: Add "New artwork with {username}" action in chat shared artworks pane with prepopulated contact flow.
-- [T] Task 37: Harden media picker behavior across platforms (camera capability guardrails, gallery timeout/errors, shared picker utility).
+- [x] Task 37: Harden media picker behavior across platforms (camera capability guardrails, gallery timeout/errors, shared picker utility).
 - [ ] Task 38: Add image import + object select workflow (alpha-preserving image layers with move/scale/rotate transforms).
