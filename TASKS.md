@@ -7,4 +7,4 @@
 - [x] Task 5: Implement SQLite schema, repositories, snapshots, and notification dispatch pipeline.
 - [x] Task 6: Implement Flutter app skeleton with auth, home, artwork list/detail, and drawing UI scaffolding.
 - [x] Task 7: Add tests and lint/format checks across server and shared packages.
-- [T] Task 8: Write deployment + developer documentation and verify end-to-end commands.
+- [x] Task 8: Write deployment + developer documentation and verify end-to-end commands.
