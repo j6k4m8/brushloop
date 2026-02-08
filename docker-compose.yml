@@ -1,0 +1,41 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    container_name: brushloop-api
+    restart: unless-stopped
+    environment:
+      BRUSHLOOP_HOST: 0.0.0.0
+      BRUSHLOOP_PORT: 8787
+      BRUSHLOOP_DATA_DIR: /data
+      BRUSHLOOP_SQLITE_PATH: /data/brushloop.sqlite
+      BRUSHLOOP_STORAGE_DRIVER: local
+      BRUSHLOOP_MEDIA_DIR: /data/media
+      BRUSHLOOP_NOTIFICATION_LOG_PATH: /data/notifications.log
+    volumes:
+      - ./deploy/data:/data
+    expose:
+      - "8787"
+
+  edge:
+    image: caddy:2.8-alpine
+    container_name: brushloop-edge
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      WEB_DOMAIN: brushloop.jordan.matelsky.com
+      API_DOMAIN: api.brushloop.jordan.matelsky.com
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./website:/srv/website:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:

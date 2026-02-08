@@ -1,0 +1,14 @@
+{
+	# Set email for Let's Encrypt account if needed.
+	# email you@example.com
+}
+
+{$WEB_DOMAIN} {
+	encode zstd gzip
+	root * /srv/website
+	file_server
+}
+
+{$API_DOMAIN} {
+	reverse_proxy api:8787
+}

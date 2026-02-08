@@ -1,0 +1,14 @@
+.git
+.gitignore
+node_modules
+app/build
+app/.dart_tool
+server/.tmp-*
+server/data
+
+# local compose volumes and generated files
+deploy/data
+
+# docs/assets not needed for API container
+website
+.github

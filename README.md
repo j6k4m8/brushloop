@@ -30,6 +30,21 @@ For compile-time API base URL override in Flutter:
 flutter run --dart-define=BRUSHLOOP_API_BASE_URL=http://127.0.0.1:8787
 ```
 
+## Docker Deployment
+
+Use Compose to run API + TLS edge proxy with persistent data mounts:
+
+```bash
+docker compose up -d --build
+```
+
+Default hostnames in `docker-compose.yml`:
+
+- `brushloop.jordan.matelsky.com` for the web site
+- `api.brushloop.jordan.matelsky.com` for the API/WebSocket endpoint
+
+Persistent API state is mounted at `./deploy/data`.
+
 ## Quality Commands
 
 -   `npm run format`
