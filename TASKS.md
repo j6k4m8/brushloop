@@ -27,4 +27,4 @@
 - [x] Task 25: Add visual package-based color picker and eyedropper tool to editor.
 - [x] Task 26: Add pan/zoom navigation tool and fit-to-viewport canvas behavior.
 - [x] Task 27: Support pinch-to-resize brush while using brush or eraser tools.
-- [T] Task 28: Fix Flutter gesture recognizer conflict by using a single scale-based canvas gesture pipeline.
+- [x] Task 28: Fix Flutter gesture recognizer conflict by using a single scale-based canvas gesture pipeline.
