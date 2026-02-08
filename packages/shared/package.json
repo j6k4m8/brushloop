@@ -1,0 +1,11 @@
+{
+  "name": "@brushloop/shared",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "lint": "echo 'shared lint placeholder'",
+    "test": "echo 'shared test placeholder'",
+    "build": "echo 'shared build placeholder'"
+  }
+}

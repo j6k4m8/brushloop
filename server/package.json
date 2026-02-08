@@ -1,0 +1,11 @@
+{
+  "name": "@brushloop/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "lint": "echo 'server lint placeholder'",
+    "test": "echo 'server test placeholder'",
+    "build": "echo 'server build placeholder'"
+  }
+}

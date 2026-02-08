@@ -1,0 +1,19 @@
+{
+  "name": "brushloop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "BrushLoop monorepo",
+  "workspaces": [
+    "server",
+    "packages/*"
+  ],
+  "scripts": {
+    "lint": "npm run lint --workspaces --if-present && ./scripts/flutter-lint.sh",
+    "test": "npm run test --workspaces --if-present && ./scripts/flutter-test.sh",
+    "build": "npm run build --workspaces --if-present",
+    "format": "npm run format --workspaces --if-present"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
