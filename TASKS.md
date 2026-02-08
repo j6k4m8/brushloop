@@ -20,4 +20,4 @@
 - [x] Task 18: Fix eraser black/flicker artifacts while preserving per-layer isolation.
 - [x] Task 19: Replace unstable eraser compositing path causing black/flicker viewport regression.
 - [x] Task 20: Improve layer list ordering and compactness in artwork controls.
-- [T] Task 21: Apply websocket operation sync so drawings persist and propagate across users.
+- [x] Task 21: Apply websocket operation sync so drawings persist and propagate across users.
