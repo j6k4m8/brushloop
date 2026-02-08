@@ -38,4 +38,4 @@
 - [x] Task 36: Add "New artwork with {username}" action in chat shared artworks pane with prepopulated contact flow.
 - [x] Task 37: Harden media picker behavior across platforms (camera capability guardrails, gallery timeout/errors, shared picker utility).
 - [ ] Task 38: Add image import + object select workflow (alpha-preserving image layers with move/scale/rotate transforms).
-- [T] Task 39: Fix gallery picker hang on desktop/macOS with robust platform-specific picker and entitlements.
+- [x] Task 39: Fix gallery picker hang on desktop/macOS with robust platform-specific picker and entitlements.
