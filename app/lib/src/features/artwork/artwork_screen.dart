@@ -891,7 +891,7 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
               children: <Widget>[
                 Row(
                   children: <Widget>[
-                    Expanded(
+                    Flexible(
                       child: Text(
                         details.artwork.title,
                         maxLines: 1,
