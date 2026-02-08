@@ -8,6 +8,7 @@ import {
   parseSubmitTurnRequest
 } from "../../packages/shared/src/index.ts";
 import { hashPassword, verifyPassword } from "./auth/password.ts";
+import { CollaborationHub } from "./collab/hub.ts";
 import { loadConfig } from "./config.ts";
 import { BrushloopDatabase } from "./db/database.ts";
 import { Router } from "./http/router.ts";
@@ -25,6 +26,7 @@ interface AppServer {
 export function createAppServer(): AppServer {
   const config = loadConfig();
   const db = new BrushloopDatabase(config.sqlitePath);
+  const collaborationHub = new CollaborationHub(db);
   const router = new Router();
 
   router.register("GET", "/health", ({ res }) => {
@@ -212,6 +214,13 @@ export function createAppServer(): AppServer {
           }),
           channel: "in_app"
         });
+
+        collaborationHub.broadcastTurnAdvanced(
+          details.artwork.id,
+          details.currentTurn.activeParticipantUserId,
+          details.currentTurn.turnNumber,
+          details.currentTurn.dueAt
+        );
       }
 
       writeJson(res, 201, details);
@@ -271,6 +280,12 @@ export function createAppServer(): AppServer {
         payloadJson: JSON.stringify({ artworkId: payload.artworkId, turnNumber: nextTurn.turnNumber }),
         channel: "in_app"
       });
+      collaborationHub.broadcastTurnAdvanced(
+        payload.artworkId,
+        nextTurn.activeParticipantUserId,
+        nextTurn.turnNumber,
+        nextTurn.dueAt
+      );
 
       writeJson(res, 200, nextTurn);
     } catch (error) {
@@ -300,6 +315,16 @@ export function createAppServer(): AppServer {
         message: error instanceof Error ? error.message : "unexpected error"
       });
     }
+  });
+
+  httpServer.on("upgrade", (req, socket, head) => {
+    const requestPath = (req.url ?? "").split("?")[0];
+    if (requestPath !== "/ws") {
+      socket.destroy();
+      return;
+    }
+
+    collaborationHub.handleUpgrade(req, socket, head);
   });
 
   return {
