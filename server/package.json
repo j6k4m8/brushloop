@@ -4,8 +4,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "lint": "echo 'server lint placeholder'",
-    "test": "echo 'server test placeholder'",
-    "build": "echo 'server build placeholder'"
+    "start": "node --experimental-strip-types src/index.ts",
+    "dev": "node --experimental-strip-types --watch src/index.ts",
+    "lint": "node ../scripts/lint.mjs src test",
+    "test": "node --experimental-strip-types --test test/*.test.ts",
+    "build": "node ../scripts/noop-build.mjs server",
+    "format": "node ../scripts/noop-format.mjs server"
   }
 }

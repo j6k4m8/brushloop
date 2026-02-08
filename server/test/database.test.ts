@@ -1,0 +1,54 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+
+import { hashPassword } from "../src/auth/password.ts";
+import { BrushloopDatabase } from "../src/db/database.ts";
+
+function makeTmpPath(name: string): string {
+  const root = fs.mkdtempSync(path.join(process.cwd(), ".tmp-"));
+  return path.join(root, `${name}.sqlite`);
+}
+
+test("database creates users and login sessions", () => {
+  const dbPath = makeTmpPath("auth");
+  const db = new BrushloopDatabase(dbPath);
+
+  const user = db.createUser("a@example.com", "A", hashPassword("password123"));
+  const fetched = db.getUserByEmail("a@example.com");
+  assert.equal(fetched?.id, user.id);
+
+  const session = db.createSession(user.id, 1);
+  const loadedSession = db.getSession(session.token);
+  assert.equal(loadedSession?.userId, user.id);
+
+  db.close();
+});
+
+test("turn submission advances round robin", () => {
+  const dbPath = makeTmpPath("turns");
+  const db = new BrushloopDatabase(dbPath);
+
+  const userA = db.createUser("a@example.com", "A", hashPassword("password123"));
+  const userB = db.createUser("b@example.com", "B", hashPassword("password123"));
+
+  db.acceptInvitation(db.createContactInvitation(userA.id, userB.email).id, userB.id);
+
+  const details = db.createArtwork({
+    title: "Turn Art",
+    mode: "turn_based",
+    width: 100,
+    height: 100,
+    basePhotoPath: null,
+    createdByUserId: userA.id,
+    participantUserIds: [userA.id, userB.id],
+    turnDurationMinutes: null
+  });
+
+  const nextTurn = db.submitTurn(details.artwork.id, details.currentTurn!.activeParticipantUserId);
+  assert.equal(nextTurn.activeParticipantUserId, userB.id);
+  assert.equal(nextTurn.turnNumber, 2);
+
+  db.close();
+});
