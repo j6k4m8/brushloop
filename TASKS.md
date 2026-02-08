@@ -41,4 +41,4 @@
 - [x] Task 39: Fix gallery picker hang on desktop/macOS with robust platform-specific picker and entitlements.
 - [x] Task 40: Fix create-artwork contact dropdown crash by using stable contact IDs and deduped contact options.
 - [x] Task 41: Fix canvas repaint consistency so realtime operations and undo render immediately across clients.
-- [T] Task 42: Implement collaborative undo/redo sync by broadcasting stroke remove/add operations over websocket.
+- [x] Task 42: Implement collaborative undo/redo sync by broadcasting stroke remove/add operations over websocket.
