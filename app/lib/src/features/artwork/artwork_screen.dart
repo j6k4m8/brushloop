@@ -541,6 +541,8 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
 
     final turn = details.currentTurn;
     final activeUser = turn?.activeParticipantUserId;
+    final displayLayers = details.layers.toList()
+      ..sort((a, b) => b.sortOrder.compareTo(a.sortOrder));
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -650,21 +652,33 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
           ],
         ),
         const SizedBox(height: 8),
-        for (final layer in details.layers)
+        for (final layer in displayLayers)
           Card(
             child: ListTile(
+              dense: true,
+              visualDensity: VisualDensity.compact,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 10,
+                vertical: 2,
+              ),
+              minLeadingWidth: 28,
               leading: IconButton(
                 onPressed:
                     layer.isLocked ? null : () => _toggleLayerVisibility(layer),
+                constraints: const BoxConstraints.tightFor(
+                  width: 28,
+                  height: 28,
+                ),
+                padding: EdgeInsets.zero,
+                iconSize: 18,
                 icon: Icon(
                   layer.isVisible ? Icons.visibility : Icons.visibility_off,
                 ),
               ),
               title: Text(layer.name),
-              subtitle: Text(layer.isLocked ? 'Locked' : 'Editable'),
               trailing: layer.id == _selectedLayerId
-                  ? const Icon(Icons.check_circle)
-                  : const Icon(Icons.radio_button_unchecked),
+                  ? const Icon(Icons.check_circle, size: 18)
+                  : const Icon(Icons.radio_button_unchecked, size: 18),
               onTap: layer.isLocked
                   ? null
                   : () {

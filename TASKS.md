@@ -19,3 +19,4 @@
 - [x] Task 17: Isolate per-layer rendering so eraser cannot affect layers below.
 - [x] Task 18: Fix eraser black/flicker artifacts while preserving per-layer isolation.
 - [x] Task 19: Replace unstable eraser compositing path causing black/flicker viewport regression.
+- [T] Task 20: Improve layer list ordering and compactness in artwork controls.
