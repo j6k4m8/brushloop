@@ -1,0 +1,608 @@
+import 'dart:async';
+import 'dart:math';
+
+import 'package:flutter/material.dart';
+
+import '../../core/app_config.dart';
+import '../../core/models.dart';
+import '../../network/collaboration_socket.dart';
+import '../../state/app_controller.dart';
+import '../../widgets/drawing_canvas.dart';
+
+/// Artwork editor screen with layer controls and drawing tools.
+class ArtworkScreen extends StatefulWidget {
+  /// Creates an artwork editor screen.
+  const ArtworkScreen({
+    super.key,
+    required this.controller,
+    required this.artwork,
+  });
+
+  /// App controller.
+  final AppController controller;
+
+  /// Artwork summary from the home list.
+  final ArtworkSummary artwork;
+
+  @override
+  State<ArtworkScreen> createState() => _ArtworkScreenState();
+}
+
+class _ArtworkScreenState extends State<ArtworkScreen> {
+  ArtworkDetails? _details;
+  String? _selectedLayerId;
+  bool _loading = true;
+  String? _error;
+
+  final List<CanvasStroke> _strokes = <CanvasStroke>[];
+  final List<CanvasStroke> _redoBuffer = <CanvasStroke>[];
+  CanvasStroke? _activeStroke;
+
+  _EditorTool _tool = _EditorTool.brush;
+  double _brushSize = 8;
+  Color _brushColor = const Color(0xFF111827);
+
+  CollaborationSocket? _socket;
+  StreamSubscription<Map<String, dynamic>>? _messageSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDetails();
+    _connectSocket();
+  }
+
+  @override
+  void dispose() {
+    _messageSubscription?.cancel();
+    if (_socket case final socket?) {
+      socket.leaveArtwork(widget.artwork.id);
+      socket.disconnect();
+    }
+    super.dispose();
+  }
+
+  Future<void> _loadDetails() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+
+    try {
+      final details = await widget.controller.loadArtworkDetails(widget.artwork.id);
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _details = details;
+        _selectedLayerId = details.layers.firstWhere(
+          (layer) => !layer.isLocked,
+          orElse: () => details.layers.first,
+        ).id;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _error = error.toString();
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
+    }
+  }
+
+  void _connectSocket() {
+    final token = widget.controller.session?.token;
+    if (token == null) {
+      return;
+    }
+
+    final socket = CollaborationSocket(url: AppConfig.wsUrl);
+    socket.connect(token: token);
+    socket.joinArtwork(widget.artwork.id);
+
+    _messageSubscription = socket.messages.listen((payload) {
+      if (payload['type'] == 'server.turn_advanced') {
+        final details = _details;
+        if (details == null || payload['artworkId'] != details.artwork.id) {
+          return;
+        }
+
+        setState(() {
+          _details = ArtworkDetails(
+            artwork: details.artwork,
+            participants: details.participants,
+            layers: details.layers,
+            currentTurn: TurnStatus(
+              activeParticipantUserId:
+                  payload['activeParticipantUserId'] as String,
+              turnNumber: (payload['turnNumber'] as num).toInt(),
+              dueAt: payload['dueAt'] as String?,
+            ),
+          );
+        });
+      }
+    });
+
+    _socket = socket;
+  }
+
+  bool get _canEdit {
+    final details = _details;
+    final session = widget.controller.session;
+    if (details == null || session == null) {
+      return false;
+    }
+
+    if (details.artwork.mode == ArtworkMode.realTime) {
+      return true;
+    }
+
+    return details.currentTurn?.activeParticipantUserId == session.user.id;
+  }
+
+  void _onPanStart(DragStartDetails details) {
+    final layerId = _selectedLayerId;
+    if (!_canEdit || layerId == null) {
+      return;
+    }
+
+    final layer = _details?.layers.firstWhere((item) => item.id == layerId);
+    if (layer == null || layer.isLocked) {
+      return;
+    }
+
+    if (_tool == _EditorTool.eraser) {
+      _eraseOnLayer(layerId);
+      return;
+    }
+
+    final stroke = CanvasStroke(
+      id: _newStrokeId(),
+      layerId: layerId,
+      color: _brushColor,
+      size: _brushSize,
+      points: <CanvasStrokePoint>[
+        CanvasStrokePoint(
+          x: details.localPosition.dx,
+          y: details.localPosition.dy,
+        ),
+      ],
+      isEraser: false,
+    );
+
+    setState(() {
+      _activeStroke = stroke;
+    });
+  }
+
+  void _onPanUpdate(DragUpdateDetails details) {
+    final activeStroke = _activeStroke;
+    if (activeStroke == null) {
+      return;
+    }
+
+    final updated = CanvasStroke(
+      id: activeStroke.id,
+      layerId: activeStroke.layerId,
+      color: activeStroke.color,
+      size: activeStroke.size,
+      points: <CanvasStrokePoint>[
+        ...activeStroke.points,
+        CanvasStrokePoint(
+          x: details.localPosition.dx,
+          y: details.localPosition.dy,
+        ),
+      ],
+      isEraser: activeStroke.isEraser,
+    );
+
+    setState(() {
+      _activeStroke = updated;
+    });
+  }
+
+  void _onPanEnd(DragEndDetails _) {
+    final activeStroke = _activeStroke;
+    if (activeStroke == null) {
+      return;
+    }
+
+    setState(() {
+      _strokes.add(activeStroke);
+      _activeStroke = null;
+      _redoBuffer.clear();
+    });
+
+    _sendStrokeOperation(activeStroke);
+  }
+
+  void _eraseOnLayer(String layerId) {
+    final index = _strokes.lastIndexWhere((stroke) => stroke.layerId == layerId);
+    if (index == -1) {
+      return;
+    }
+
+    final removed = _strokes[index];
+    setState(() {
+      _strokes.removeAt(index);
+      _redoBuffer.clear();
+    });
+
+    _socket?.send(<String, dynamic>{
+      'type': 'client.apply_operations',
+      'artworkId': widget.artwork.id,
+      'operations': <Map<String, dynamic>>[
+        <String, dynamic>{
+          'id': _newOperationId(),
+          'artworkId': widget.artwork.id,
+          'layerId': layerId,
+          'actorUserId': widget.controller.session?.user.id,
+          'clientId': 'flutter-client',
+          'sequence': DateTime.now().microsecondsSinceEpoch,
+          'lamportTs': DateTime.now().millisecondsSinceEpoch,
+          'type': 'stroke.erase',
+          'payload': <String, dynamic>{
+            'strokeId': removed.id,
+          },
+        },
+      ],
+    });
+  }
+
+  void _sendStrokeOperation(CanvasStroke stroke) {
+    _socket?.send(<String, dynamic>{
+      'type': 'client.apply_operations',
+      'artworkId': widget.artwork.id,
+      'operations': <Map<String, dynamic>>[
+        <String, dynamic>{
+          'id': _newOperationId(),
+          'artworkId': widget.artwork.id,
+          'layerId': stroke.layerId,
+          'actorUserId': widget.controller.session?.user.id,
+          'clientId': 'flutter-client',
+          'sequence': DateTime.now().microsecondsSinceEpoch,
+          'lamportTs': DateTime.now().millisecondsSinceEpoch,
+          'type': 'stroke.add',
+          'payload': <String, dynamic>{
+            'strokeId': stroke.id,
+            'tool': 'brush',
+            'color':
+                '#${stroke.color.toARGB32().toRadixString(16).padLeft(8, '0')}',
+            'size': stroke.size,
+            'opacity': 1,
+            'points': stroke.points
+                .map((point) => <String, dynamic>{'x': point.x, 'y': point.y})
+                .toList(),
+          },
+        },
+      ],
+    });
+  }
+
+  Future<void> _submitTurn() async {
+    final details = _details;
+    if (details == null || details.artwork.mode != ArtworkMode.turnBased) {
+      return;
+    }
+
+    try {
+      final refreshed = await widget.controller.submitTurn(details.artwork.id);
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _details = refreshed;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.toString())),
+      );
+    }
+  }
+
+  void _undo() {
+    if (_strokes.isEmpty) {
+      return;
+    }
+
+    setState(() {
+      _redoBuffer.add(_strokes.removeLast());
+    });
+  }
+
+  void _redo() {
+    if (_redoBuffer.isEmpty) {
+      return;
+    }
+
+    setState(() {
+      _strokes.add(_redoBuffer.removeLast());
+    });
+  }
+
+  void _toggleLayerVisibility(ArtworkLayer layer) {
+    final details = _details;
+    if (details == null) {
+      return;
+    }
+
+    final updatedLayers = details.layers
+        .map(
+          (candidate) => candidate.id == layer.id
+              ? candidate.copyWith(isVisible: !candidate.isVisible)
+              : candidate,
+        )
+        .toList();
+
+    setState(() {
+      _details = ArtworkDetails(
+        artwork: details.artwork,
+        participants: details.participants,
+        layers: updatedLayers,
+        currentTurn: details.currentTurn,
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final details = _details;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.artwork.title),
+        actions: <Widget>[
+          IconButton(
+            onPressed: _undo,
+            tooltip: 'Undo',
+            icon: const Icon(Icons.undo),
+          ),
+          IconButton(
+            onPressed: _redo,
+            tooltip: 'Redo',
+            icon: const Icon(Icons.redo),
+          ),
+          if (details?.artwork.mode == ArtworkMode.turnBased)
+            FilledButton.icon(
+              onPressed: _canEdit ? _submitTurn : null,
+              icon: const Icon(Icons.check),
+              label: const Text('Submit Turn'),
+            ),
+          const SizedBox(width: 12),
+        ],
+      ),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : _error != null
+              ? Center(child: Text(_error!))
+              : details == null
+                  ? const Center(child: Text('Artwork details unavailable'))
+                  : LayoutBuilder(
+                      builder: (context, constraints) {
+                        final controls = _buildControlsPanel(context, details);
+                        final canvas = _buildCanvas(details);
+
+                        if (constraints.maxWidth > 980) {
+                          return Row(
+                            children: <Widget>[
+                              SizedBox(width: 320, child: controls),
+                              const VerticalDivider(width: 1),
+                              Expanded(child: canvas),
+                            ],
+                          );
+                        }
+
+                        return Column(
+                          children: <Widget>[
+                            SizedBox(height: 260, child: controls),
+                            const Divider(height: 1),
+                            Expanded(child: canvas),
+                          ],
+                        );
+                      },
+                    ),
+    );
+  }
+
+  Widget _buildCanvas(ArtworkDetails details) {
+    final visibleLayerIds = details.layers
+        .where((layer) => layer.isVisible)
+        .map((layer) => layer.id)
+        .toSet();
+    final layerOrder = <String, int>{
+      for (final layer in details.layers) layer.id: layer.sortOrder,
+    };
+
+    return Padding(
+      padding: const EdgeInsets.all(12),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFD4D4D8)),
+          boxShadow: const <BoxShadow>[
+            BoxShadow(
+              color: Color(0x14000000),
+              blurRadius: 12,
+              offset: Offset(0, 6),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: DrawingCanvas(
+            strokes: _strokes,
+            activeStroke: _activeStroke,
+            visibleLayerIds: visibleLayerIds,
+            layerOrder: layerOrder,
+            canEdit: _canEdit,
+            onPanStart: _onPanStart,
+            onPanUpdate: _onPanUpdate,
+            onPanEnd: _onPanEnd,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildControlsPanel(BuildContext context, ArtworkDetails details) {
+    final palette = <Color>[
+      const Color(0xFF111827),
+      const Color(0xFF0E7490),
+      const Color(0xFFCA8A04),
+      const Color(0xFF16A34A),
+      const Color(0xFFDB2777),
+      const Color(0xFFEA580C),
+    ];
+
+    final turn = details.currentTurn;
+    final activeUser = turn?.activeParticipantUserId;
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: <Widget>[
+        Text('Collaboration', style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 8),
+        Chip(
+          label: Text(
+            details.artwork.mode == ArtworkMode.realTime
+                ? 'Mode: Real-time'
+                : 'Mode: Turn-based',
+          ),
+        ),
+        if (turn != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+              'Turn ${turn.turnNumber}: ${activeUser ?? 'Unknown'}\n'
+              'Due: ${turn.dueAt ?? 'No timer'}',
+            ),
+          ),
+        const SizedBox(height: 20),
+        Text('Tools', style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 8),
+        SegmentedButton<_EditorTool>(
+          segments: const <ButtonSegment<_EditorTool>>[
+            ButtonSegment<_EditorTool>(
+              value: _EditorTool.brush,
+              label: Text('Brush'),
+              icon: Icon(Icons.brush_outlined),
+            ),
+            ButtonSegment<_EditorTool>(
+              value: _EditorTool.eraser,
+              label: Text('Eraser'),
+              icon: Icon(Icons.auto_fix_high),
+            ),
+          ],
+          selected: <_EditorTool>{_tool},
+          onSelectionChanged: (value) {
+            setState(() {
+              _tool = value.first;
+            });
+          },
+        ),
+        const SizedBox(height: 12),
+        Text('Brush Size ${_brushSize.toStringAsFixed(0)}'),
+        Slider(
+          value: _brushSize,
+          min: 2,
+          max: 36,
+          onChanged: _tool == _EditorTool.eraser
+              ? null
+              : (value) {
+                  setState(() {
+                    _brushSize = value;
+                  });
+                },
+        ),
+        const SizedBox(height: 8),
+        Text('Color', style: Theme.of(context).textTheme.titleSmall),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: palette
+              .map(
+                (color) => GestureDetector(
+                  onTap: _tool == _EditorTool.eraser
+                      ? null
+                      : () {
+                          setState(() {
+                            _brushColor = color;
+                          });
+                        },
+                  child: Container(
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      color: color,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: _brushColor == color
+                            ? Colors.black
+                            : Colors.transparent,
+                        width: 2,
+                      ),
+                    ),
+                  ),
+                ),
+              )
+              .toList(),
+        ),
+        const SizedBox(height: 20),
+        Text('Layers', style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 8),
+        for (final layer in details.layers)
+          Card(
+            child: ListTile(
+              leading: IconButton(
+                onPressed:
+                    layer.isLocked ? null : () => _toggleLayerVisibility(layer),
+                icon: Icon(
+                  layer.isVisible ? Icons.visibility : Icons.visibility_off,
+                ),
+              ),
+              title: Text(layer.name),
+              subtitle: Text(layer.isLocked ? 'Locked' : 'Editable'),
+              trailing: layer.id == _selectedLayerId
+                  ? const Icon(Icons.check_circle)
+                  : const Icon(Icons.radio_button_unchecked),
+              onTap: layer.isLocked
+                  ? null
+                  : () {
+                      setState(() {
+                        _selectedLayerId = layer.id;
+                      });
+                    },
+            ),
+          ),
+      ],
+    );
+  }
+
+  String _newStrokeId() {
+    final now = DateTime.now().microsecondsSinceEpoch;
+    final random = Random().nextInt(1 << 31);
+    return 'stroke-$now-$random';
+  }
+
+  String _newOperationId() {
+    final now = DateTime.now().microsecondsSinceEpoch;
+    final random = Random().nextInt(1 << 31);
+    return 'op-$now-$random';
+  }
+}
+
+enum _EditorTool {
+  brush,
+  eraser,
+}

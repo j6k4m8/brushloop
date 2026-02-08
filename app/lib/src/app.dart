@@ -1,0 +1,58 @@
+import 'package:flutter/material.dart';
+
+import 'core/app_config.dart';
+import 'network/api_client.dart';
+import 'state/app_controller.dart';
+import 'features/auth/auth_screen.dart';
+import 'features/home/home_screen.dart';
+
+/// Root widget for the BrushLoop Flutter client.
+class BrushLoopApp extends StatefulWidget {
+  /// Creates the application root.
+  const BrushLoopApp({super.key});
+
+  @override
+  State<BrushLoopApp> createState() => _BrushLoopAppState();
+}
+
+class _BrushLoopAppState extends State<BrushLoopApp> {
+  late final AppController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    final apiClient = ApiClient(baseUrl: AppConfig.apiBaseUrl);
+    _controller = AppController(apiClient: apiClient);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      title: 'BrushLoop',
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF0E7490),
+          brightness: Brightness.light,
+        ),
+        useMaterial3: true,
+      ),
+      home: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, _) {
+          if (_controller.session == null) {
+            return AuthScreen(controller: _controller);
+          }
+
+          return HomeScreen(controller: _controller);
+        },
+      ),
+    );
+  }
+}
