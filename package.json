@@ -8,6 +8,8 @@
     "packages/*"
   ],
   "scripts": {
+    "start:server": "npm run start -w @brushloop/server",
+    "dev:server": "npm run dev -w @brushloop/server",
     "lint": "npm run lint --workspaces --if-present && ./scripts/flutter-lint.sh",
     "test": "npm run test --workspaces --if-present && ./scripts/flutter-test.sh",
     "build": "npm run build --workspaces --if-present",
