@@ -40,4 +40,4 @@
 - [ ] Task 38: Add image import + object select workflow (alpha-preserving image layers with move/scale/rotate transforms).
 - [x] Task 39: Fix gallery picker hang on desktop/macOS with robust platform-specific picker and entitlements.
 - [x] Task 40: Fix create-artwork contact dropdown crash by using stable contact IDs and deduped contact options.
-- [T] Task 41: Fix canvas repaint consistency so realtime operations and undo render immediately across clients.
+- [x] Task 41: Fix canvas repaint consistency so realtime operations and undo render immediately across clients.
