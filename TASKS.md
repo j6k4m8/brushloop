@@ -32,4 +32,4 @@
 - [x] Task 30: Add turn-based first-turn chooser and waiting-user submit-turn indicator.
 - [x] Task 31: Add artwork rename flows and collaboration descriptor labels in list/editor header.
 - [x] Task 32: Add contact chat workspace with inline artwork events and prioritize my-turn artworks.
-- [T] Task 33: Fix artwork header title-edit button alignment.
+- [x] Task 33: Fix artwork header title-edit button alignment.
