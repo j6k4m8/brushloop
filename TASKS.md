@@ -42,3 +42,4 @@
 - [x] Task 40: Fix create-artwork contact dropdown crash by using stable contact IDs and deduped contact options.
 - [x] Task 41: Fix canvas repaint consistency so realtime operations and undo render immediately across clients.
 - [x] Task 42: Implement collaborative undo/redo sync by broadcasting stroke remove/add operations over websocket.
+- [T] Task 43: Restrict undo/redo to current user's strokes only in collaborative sessions.

@@ -24,6 +24,7 @@ class CanvasStroke {
   const CanvasStroke({
     required this.id,
     required this.layerId,
+    required this.actorUserId,
     required this.color,
     required this.size,
     required this.points,
@@ -35,6 +36,9 @@ class CanvasStroke {
 
   /// Owning layer id.
   final String layerId;
+
+  /// User id for the author of this stroke.
+  final String actorUserId;
 
   /// Stroke color.
   final Color color;

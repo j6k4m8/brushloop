@@ -207,6 +207,7 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
       final stroke = CanvasStroke(
         id: _newStrokeId(),
         layerId: layerId,
+        actorUserId: widget.controller.session?.user.id ?? '',
         color: _tool == _EditorTool.eraser
             ? const Color(0x00000000)
             : _brushColor,
@@ -229,6 +230,7 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
     final updated = CanvasStroke(
       id: activeStroke.id,
       layerId: activeStroke.layerId,
+      actorUserId: activeStroke.actorUserId,
       color: activeStroke.color,
       size: activeStroke.size,
       points: <CanvasStrokePoint>[
@@ -494,9 +496,21 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
       return;
     }
 
+    final currentUserId = widget.controller.session?.user.id;
+    if (currentUserId == null) {
+      return;
+    }
+
+    final undoIndex = _strokes.lastIndexWhere(
+      (stroke) => stroke.actorUserId == currentUserId,
+    );
+    if (undoIndex < 0) {
+      return;
+    }
+
     CanvasStroke? removed;
     setState(() {
-      removed = _strokes.removeLast();
+      removed = _strokes.removeAt(undoIndex);
       _redoBuffer.add(removed!);
     });
 
@@ -510,9 +524,21 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
       return;
     }
 
+    final currentUserId = widget.controller.session?.user.id;
+    if (currentUserId == null) {
+      return;
+    }
+
+    final redoIndex = _redoBuffer.lastIndexWhere(
+      (stroke) => stroke.actorUserId == currentUserId,
+    );
+    if (redoIndex < 0) {
+      return;
+    }
+
     CanvasStroke? restored;
     setState(() {
-      restored = _redoBuffer.removeLast();
+      restored = _redoBuffer.removeAt(redoIndex);
       _upsertStroke(restored!);
     });
 
@@ -645,6 +671,7 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
   bool _strokesEqual(CanvasStroke a, CanvasStroke b) {
     if (a.id != b.id ||
         a.layerId != b.layerId ||
+        a.actorUserId != b.actorUserId ||
         a.color != b.color ||
         a.size != b.size ||
         a.isEraser != b.isEraser ||
@@ -705,6 +732,7 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
     return CanvasStroke(
       id: strokeId,
       layerId: layerId,
+      actorUserId: operation['actorUserId'] as String? ?? '',
       color: isEraser
           ? const Color(0x00000000)
           : _parseColor(payload['color'] as String?),
