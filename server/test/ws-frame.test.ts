@@ -33,3 +33,13 @@ test("tryDecodeFrame decodes masked client frame", () => {
   assert.ok(decoded);
   assert.equal(decoded?.frame.payload.toString("utf8"), "brushloop");
 });
+
+test("tryDecodeFrame handles extended 16-bit payload length", () => {
+  const payload = Buffer.from("a".repeat(300), "utf8");
+  const encoded = encodeFrame(0x1, payload);
+  const decoded = tryDecodeFrame(encoded);
+
+  assert.ok(decoded);
+  assert.equal(decoded?.frame.payload.length, 300);
+  assert.equal(decoded?.frame.payload.toString("utf8"), payload.toString("utf8"));
+});

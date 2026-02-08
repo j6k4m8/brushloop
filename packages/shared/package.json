@@ -10,6 +10,6 @@
     "lint": "node ../../scripts/lint.mjs packages/shared/src packages/shared/test",
     "test": "node --experimental-strip-types --test test/*.test.ts",
     "build": "node ../../scripts/noop-build.mjs shared",
-    "format": "node ../../scripts/noop-format.mjs shared"
+    "format": "node ../../scripts/format-check.mjs packages/shared/src packages/shared/test"
   }
 }

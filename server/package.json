@@ -9,6 +9,6 @@
     "lint": "node ../scripts/lint.mjs src test",
     "test": "node --experimental-strip-types --test test/*.test.ts",
     "build": "node ../scripts/noop-build.mjs server",
-    "format": "node ../scripts/noop-format.mjs server"
+    "format": "node ../scripts/format-check.mjs src test"
   }
 }

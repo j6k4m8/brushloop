@@ -40,6 +40,21 @@ test("parseCreateArtworkRequest validates mode", () => {
   );
 });
 
+test("parseCreateArtworkRequest parses turn-based payload", () => {
+  const parsed = parseCreateArtworkRequest({
+    title: "Round Robin",
+    mode: "turn_based",
+    participantUserIds: ["u1", "u2"],
+    width: 1920,
+    height: 1080,
+    turnDurationMinutes: 60
+  });
+
+  assert.equal(parsed.mode, "turn_based");
+  assert.equal(parsed.turnDurationMinutes, 60);
+  assert.deepEqual(parsed.participantUserIds, ["u1", "u2"]);
+});
+
 test("parseCollaborationClientMessage validates hello message", () => {
   const parsed = parseCollaborationClientMessage({
     type: "client.hello",
@@ -48,4 +63,14 @@ test("parseCollaborationClientMessage validates hello message", () => {
   });
 
   assert.equal(parsed.type, "client.hello");
+});
+
+test("parseCollaborationClientMessage rejects unknown type", () => {
+  assert.throws(
+    () =>
+      parseCollaborationClientMessage({
+        type: "client.unknown"
+      }),
+    /unsupported message type/
+  );
 });
