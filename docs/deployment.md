@@ -26,11 +26,13 @@ This repo includes:
 
 - `server/Dockerfile` for the Node.js API service.
 - `docker-compose.yml` with:
+  - `web-build` service (Dockerized Flutter web build).
   - `api` service (BrushLoop backend).
   - `edge` service (Caddy TLS + routing).
 - `deploy/domains.env` as the single source of truth for:
   - `WEB_DOMAIN`
   - `API_DOMAIN`
+- `deploy/up.sh` helper to build web + start runtime services.
 
 Persistent state is mounted at `./deploy/data`:
 
@@ -38,10 +40,10 @@ Persistent state is mounted at `./deploy/data`:
 - media files
 - notification log
 
-Bring the stack up:
+Deploy (no Flutter installed on host required):
 
 ```bash
-docker compose up -d --build
+./deploy/up.sh
 ```
 
 Stop the stack:
@@ -54,7 +56,7 @@ docker compose down
 
 Compose/Caddy routes:
 
-- `WEB_DOMAIN` -> Flutter web build from `app/build/web`
+- `WEB_DOMAIN` -> Flutter web build from `deploy/web`
 - `API_DOMAIN` -> BrushLoop API (`/ws` included)
 
 DNS requirements:
@@ -82,14 +84,7 @@ Platform examples:
 - Back up both `brushloop.sqlite` and media files referenced by DB paths.
 - Place backend behind a reverse proxy if exposing beyond localhost.
 - If using HTTPS, proxy `/ws` with websocket upgrade support.
-- Build web app using `API_DOMAIN` from `deploy/domains.env`:
-
-```bash
-source deploy/domains.env
-cd app
-flutter build web --release --dart-define=BRUSHLOOP_API_BASE_URL=https://$API_DOMAIN
-cd ..
-```
+- `deploy/up.sh` runs `web-build` in Docker before bringing up `api` and `edge`.
 
 ## Verification Checklist
 

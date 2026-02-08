@@ -49,3 +49,4 @@
 - [x] Task 47: Build a polished static website with screenshot placeholders for GitHub Pages deployment.
 - [x] Task 48: Add Docker + Compose deployment with persistent SQLite/media mounts and domain-based web/api routing.
 - [x] Task 49: Serve Flutter web build at web domain and centralize domains into a single deployment config file.
+- [T] Task 50: Add Dockerized Flutter web build step to deployment so host nodes do not need Flutter installed.
