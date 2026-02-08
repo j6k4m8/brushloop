@@ -42,6 +42,8 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
   _EditorTool _tool = _EditorTool.brush;
   double _brushSize = 8;
   Color _brushColor = const Color(0xFF111827);
+  bool _showMobileToolPane = false;
+  bool _showMobileInspectorPane = false;
 
   CollaborationSocket? _socket;
   StreamSubscription<Map<String, dynamic>>? _messageSubscription;
@@ -615,42 +617,33 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
                           )
                         : LayoutBuilder(
                             builder: (context, constraints) {
-                              final wideLayout = constraints.maxWidth > 1150;
-                              final compactLayout = constraints.maxWidth < 860;
+                              final wideLayout = constraints.maxWidth >= 1120;
 
                               return Column(
                                 children: <Widget>[
-                                  _buildTopToolbar(details),
-                                  const SizedBox(height: 10),
+                                  _buildTopToolbar(
+                                    details,
+                                    showPaneToggles: !wideLayout,
+                                  ),
+                                  const SizedBox(height: 8),
                                   Expanded(
-                                    child: compactLayout
-                                        ? Column(
-                                            children: <Widget>[
-                                              _buildCompactToolRow(),
-                                              const SizedBox(height: 8),
-                                              Expanded(child: _buildCanvas(details)),
-                                              const SizedBox(height: 8),
-                                              SizedBox(
-                                                height: 270,
-                                                child: _buildControlsPanel(details),
-                                              ),
-                                            ],
-                                          )
-                                        : Row(
+                                    child: wideLayout
+                                        ? Row(
                                             children: <Widget>[
                                               SizedBox(
                                                 width: 50,
                                                 child: _buildToolRail(),
                                               ),
-                                              const SizedBox(width: 10),
+                                              const SizedBox(width: 8),
                                               Expanded(child: _buildCanvas(details)),
-                                              const SizedBox(width: 10),
+                                              const SizedBox(width: 8),
                                               SizedBox(
-                                                width: wideLayout ? 320 : 280,
+                                                width: 300,
                                                 child: _buildControlsPanel(details),
                                               ),
                                             ],
-                                          ),
+                                          )
+                                        : _buildMobileWorkspace(details),
                                   ),
                                 ],
                               );
@@ -662,7 +655,10 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
     );
   }
 
-  Widget _buildTopToolbar(ArtworkDetails details) {
+  Widget _buildTopToolbar(
+    ArtworkDetails details, {
+    required bool showPaneToggles,
+  }) {
     final turn = details.currentTurn;
     return StudioPanel(
       color: StudioPalette.chrome,
@@ -714,6 +710,36 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
               icon: Icons.check,
               onPressed: _canEdit ? _submitTurn : null,
             ),
+          if (showPaneToggles) ...<Widget>[
+            const SizedBox(width: 6),
+            StudioIconButton(
+              icon: Icons.tune,
+              tooltip: 'Tools',
+              active: _showMobileToolPane,
+              onPressed: () {
+                setState(() {
+                  _showMobileToolPane = !_showMobileToolPane;
+                  if (_showMobileToolPane) {
+                    _showMobileInspectorPane = false;
+                  }
+                });
+              },
+            ),
+            const SizedBox(width: 6),
+            StudioIconButton(
+              icon: Icons.layers_outlined,
+              tooltip: 'Inspector',
+              active: _showMobileInspectorPane,
+              onPressed: () {
+                setState(() {
+                  _showMobileInspectorPane = !_showMobileInspectorPane;
+                  if (_showMobileInspectorPane) {
+                    _showMobileToolPane = false;
+                  }
+                });
+              },
+            ),
+          ],
         ],
       ),
     );
@@ -761,45 +787,222 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
     );
   }
 
-  Widget _buildCompactToolRow() {
+  Widget _buildMobileWorkspace(ArtworkDetails details) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final paneWidth = min(320.0, constraints.maxWidth - 24);
+
+        return Stack(
+          children: <Widget>[
+            Positioned.fill(child: _buildCanvas(details)),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: IgnorePointer(
+                ignoring: !_showMobileToolPane,
+                child: AnimatedSlide(
+                  offset: _showMobileToolPane
+                      ? Offset.zero
+                      : const Offset(-1.1, 0),
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOutCubic,
+                  child: Padding(
+                    padding: const EdgeInsets.all(8),
+                    child: SizedBox(
+                      width: paneWidth,
+                      child: _buildToolOverlayPane(),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: IgnorePointer(
+                ignoring: !_showMobileInspectorPane,
+                child: AnimatedSlide(
+                  offset: _showMobileInspectorPane
+                      ? Offset.zero
+                      : const Offset(1.1, 0),
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOutCubic,
+                  child: Padding(
+                    padding: const EdgeInsets.all(8),
+                    child: SizedBox(
+                      width: paneWidth,
+                      child: _buildInspectorOverlayPane(details),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              left: 12,
+              bottom: 12,
+              child: _buildMobileFab(
+                icon: Icons.tune,
+                active: _showMobileToolPane,
+                onTap: () {
+                  setState(() {
+                    _showMobileToolPane = !_showMobileToolPane;
+                    if (_showMobileToolPane) {
+                      _showMobileInspectorPane = false;
+                    }
+                  });
+                },
+              ),
+            ),
+            Positioned(
+              right: 12,
+              bottom: 12,
+              child: _buildMobileFab(
+                icon: Icons.layers_outlined,
+                active: _showMobileInspectorPane,
+                onTap: () {
+                  setState(() {
+                    _showMobileInspectorPane = !_showMobileInspectorPane;
+                    if (_showMobileInspectorPane) {
+                      _showMobileToolPane = false;
+                    }
+                  });
+                },
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildMobileFab({
+    required IconData icon,
+    required bool active,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: active ? StudioPalette.accent : StudioPalette.panelSoft,
+      shape: const CircleBorder(),
+      elevation: 4,
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const CircleBorder(),
+        child: SizedBox(
+          width: 44,
+          height: 44,
+          child: Icon(icon, size: 20, color: StudioPalette.textStrong),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildToolOverlayPane() {
+    final palette = <Color>[
+      const Color(0xFF111827),
+      const Color(0xFF0E7490),
+      const Color(0xFFCA8A04),
+      const Color(0xFF16A34A),
+      const Color(0xFFDB2777),
+      const Color(0xFFEA580C),
+    ];
+
     return StudioPanel(
       color: StudioPalette.chrome,
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-      child: Row(
+      child: ListView(
         children: <Widget>[
-          StudioIconButton(
-            icon: Icons.brush_outlined,
-            tooltip: 'Brush',
-            active: _tool == _EditorTool.brush,
-            onPressed: () => setState(() => _tool = _EditorTool.brush),
+          const StudioSectionLabel('Tools'),
+          const SizedBox(height: 8),
+          Row(
+            children: <Widget>[
+              StudioIconButton(
+                icon: Icons.brush_outlined,
+                tooltip: 'Brush',
+                active: _tool == _EditorTool.brush,
+                onPressed: () => setState(() => _tool = _EditorTool.brush),
+              ),
+              const SizedBox(width: 6),
+              StudioIconButton(
+                icon: Icons.auto_fix_high,
+                tooltip: 'Eraser',
+                active: _tool == _EditorTool.eraser,
+                onPressed: () => setState(() => _tool = _EditorTool.eraser),
+              ),
+              const SizedBox(width: 6),
+              StudioIconButton(
+                icon: Icons.undo,
+                tooltip: 'Undo',
+                onPressed: _undo,
+              ),
+              const SizedBox(width: 6),
+              StudioIconButton(
+                icon: Icons.redo,
+                tooltip: 'Redo',
+                onPressed: _redo,
+              ),
+            ],
           ),
-          const SizedBox(width: 6),
-          StudioIconButton(
-            icon: Icons.auto_fix_high,
-            tooltip: 'Eraser',
-            active: _tool == _EditorTool.eraser,
-            onPressed: () => setState(() => _tool = _EditorTool.eraser),
-          ),
-          const SizedBox(width: 6),
-          StudioIconButton(
-            icon: Icons.undo,
-            tooltip: 'Undo',
-            onPressed: _undo,
-          ),
-          const SizedBox(width: 6),
-          StudioIconButton(
-            icon: Icons.redo,
-            tooltip: 'Redo',
-            onPressed: _redo,
-          ),
-          const Spacer(),
+          const SizedBox(height: 12),
           Text(
-            _canEdit ? 'Editing enabled' : 'Read-only',
-            style: TextStyle(
-              fontSize: 12,
-              color: _canEdit ? StudioPalette.success : StudioPalette.textMuted,
-            ),
+            '${_tool == _EditorTool.eraser ? 'Eraser' : 'Brush'} Size ${_brushSize.toStringAsFixed(0)}',
+            style: const TextStyle(fontSize: 12, color: StudioPalette.textMuted),
           ),
+          Slider(
+            value: _brushSize,
+            min: 2,
+            max: 36,
+            onChanged: (value) {
+              setState(() {
+                _brushSize = value;
+              });
+            },
+          ),
+          const SizedBox(height: 8),
+          const StudioSectionLabel('Color'),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: palette
+                .map(
+                  (color) => GestureDetector(
+                    onTap: _tool == _EditorTool.eraser
+                        ? null
+                        : () {
+                            setState(() {
+                              _brushColor = color;
+                            });
+                          },
+                    child: Container(
+                      width: 24,
+                      height: 24,
+                      decoration: BoxDecoration(
+                        color: color,
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(
+                          color: _brushColor == color
+                              ? StudioPalette.textStrong
+                              : StudioPalette.border,
+                          width: _brushColor == color ? 2 : 1,
+                        ),
+                      ),
+                    ),
+                  ),
+                )
+                .toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInspectorOverlayPane(ArtworkDetails details) {
+    return StudioPanel(
+      color: StudioPalette.chrome,
+      child: ListView(
+        children: <Widget>[
+          const StudioSectionLabel('Inspector'),
+          const SizedBox(height: 8),
+          _buildCollaborationSection(details),
+          const SizedBox(height: 12),
+          _buildLayersSection(details),
         ],
       ),
     );
@@ -817,60 +1020,70 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
         ? 1.0
         : details.artwork.width / details.artwork.height;
 
-    return StudioPanel(
-      color: StudioPalette.chrome,
-      padding: const EdgeInsets.all(14),
-      child: Container(
-        decoration: BoxDecoration(
-          color: const Color(0xFF1B1B1B),
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: StudioPalette.border),
-        ),
-        child: Center(
-          child: AspectRatio(
-            aspectRatio: artworkAspectRatio,
-            child: Container(
-              margin: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF5F5F5),
-                border: Border.all(color: const Color(0xFFCCCCCC)),
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(3),
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: <Widget>[
-                    if (details.artwork.basePhotoPath case final photoPath?)
-                      IgnorePointer(
-                        child: Image.network(
-                          _resolveMediaUrl(photoPath),
-                          fit: BoxFit.cover,
-                          headers: <String, String>{
-                            if (widget.controller.session case final session?)
-                              'Authorization': 'Bearer ${session.token}',
-                          },
-                          errorBuilder: (context, error, stackTrace) {
-                            return const SizedBox.shrink();
-                          },
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A1A1A),
+        border: Border.all(color: StudioPalette.border),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final availableWidth = max(0.0, constraints.maxWidth - 8);
+          final availableHeight = max(0.0, constraints.maxHeight - 8);
+
+          var canvasWidth = availableWidth;
+          var canvasHeight = canvasWidth / artworkAspectRatio;
+          if (canvasHeight > availableHeight) {
+            canvasHeight = availableHeight;
+            canvasWidth = canvasHeight * artworkAspectRatio;
+          }
+
+          return Center(
+            child: SizedBox(
+              width: canvasWidth,
+              height: canvasHeight,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF5F5F5),
+                  border: Border.all(color: const Color(0xFFCCCCCC)),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(3),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: <Widget>[
+                      if (details.artwork.basePhotoPath case final photoPath?)
+                        IgnorePointer(
+                          child: Image.network(
+                            _resolveMediaUrl(photoPath),
+                            fit: BoxFit.cover,
+                            headers: <String, String>{
+                              if (widget.controller.session case final session?)
+                                'Authorization': 'Bearer ${session.token}',
+                            },
+                            errorBuilder: (context, error, stackTrace) {
+                              return const SizedBox.shrink();
+                            },
+                          ),
                         ),
+                      DrawingCanvas(
+                        strokes: _strokes,
+                        activeStroke: _activeStroke,
+                        visibleLayerIds: visibleLayerIds,
+                        layerOrder: layerOrder,
+                        canEdit: _canEdit,
+                        onPanStart: _onPanStart,
+                        onPanUpdate: _onPanUpdate,
+                        onPanEnd: _onPanEnd,
                       ),
-                    DrawingCanvas(
-                      strokes: _strokes,
-                      activeStroke: _activeStroke,
-                      visibleLayerIds: visibleLayerIds,
-                      layerOrder: layerOrder,
-                      canEdit: _canEdit,
-                      onPanStart: _onPanStart,
-                      onPanUpdate: _onPanUpdate,
-                      onPanEnd: _onPanEnd,
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
-        ),
+          );
+        },
       ),
     );
   }
@@ -897,31 +1110,12 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
       const Color(0xFFEA580C),
     ];
 
-    final turn = details.currentTurn;
-    final activeUser = turn?.activeParticipantUserId;
-    final displayLayers = details.layers.toList()
-      ..sort((a, b) => b.sortOrder.compareTo(a.sortOrder));
-
     return StudioPanel(
       child: ListView(
         children: <Widget>[
-          const StudioSectionLabel('Collaboration'),
-          const SizedBox(height: 6),
-          Text(
-            details.artwork.mode == ArtworkMode.realTime
-                ? 'Mode: Real-time'
-                : 'Mode: Turn-based',
-            style: const TextStyle(fontSize: 12, color: StudioPalette.textMuted),
-          ),
-          if (turn != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Text(
-                'Turn ${turn.turnNumber}: ${activeUser ?? 'Unknown'}\n'
-                'Due: ${turn.dueAt ?? 'No timer'}',
-                style: const TextStyle(fontSize: 12, color: StudioPalette.textMuted),
-              ),
-            ),
+          const StudioSectionLabel('Inspector'),
+          const SizedBox(height: 8),
+          _buildCollaborationSection(details),
           const SizedBox(height: 14),
           const StudioSectionLabel('Brush'),
           const SizedBox(height: 8),
@@ -974,72 +1168,109 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
                 .toList(),
           ),
           const SizedBox(height: 14),
-          Row(
-            children: <Widget>[
-              const Expanded(child: StudioSectionLabel('Layers')),
-              StudioIconButton(
-                icon: Icons.add,
-                tooltip: 'Add Layer',
-                onPressed: _canEdit ? _addLayer : null,
-              ),
-            ],
+          _buildLayersSection(details),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCollaborationSection(ArtworkDetails details) {
+    final turn = details.currentTurn;
+    final activeUser = turn?.activeParticipantUserId;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(
+          details.artwork.mode == ArtworkMode.realTime
+              ? 'Mode: Real-time'
+              : 'Mode: Turn-based',
+          style: const TextStyle(fontSize: 12, color: StudioPalette.textMuted),
+        ),
+        if (turn != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(
+              'Turn ${turn.turnNumber}: ${activeUser ?? 'Unknown'}\n'
+              'Due: ${turn.dueAt ?? 'No timer'}',
+              style: const TextStyle(fontSize: 12, color: StudioPalette.textMuted),
+            ),
           ),
-          const SizedBox(height: 8),
-          for (final layer in displayLayers)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 6),
-              child: Material(
-                color: layer.id == _selectedLayerId
-                    ? const Color(0xFF3A3A3A)
-                    : StudioPalette.panelSoft,
+      ],
+    );
+  }
+
+  Widget _buildLayersSection(ArtworkDetails details) {
+    final displayLayers = details.layers.toList()
+      ..sort((a, b) => b.sortOrder.compareTo(a.sortOrder));
+
+    return Column(
+      children: <Widget>[
+        Row(
+          children: <Widget>[
+            const Expanded(child: StudioSectionLabel('Layers')),
+            StudioIconButton(
+              icon: Icons.add,
+              tooltip: 'Add Layer',
+              onPressed: _canEdit ? _addLayer : null,
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        for (final layer in displayLayers)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Material(
+              color: layer.id == _selectedLayerId
+                  ? const Color(0xFF3A3A3A)
+                  : StudioPalette.panelSoft,
+              borderRadius: BorderRadius.circular(4),
+              child: InkWell(
                 borderRadius: BorderRadius.circular(4),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(4),
-                  onTap: layer.isLocked
-                      ? null
-                      : () {
-                          setState(() {
-                            _selectedLayerId = layer.id;
-                          });
-                        },
-                  child: Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(4),
-                      border: Border.all(
-                        color: layer.id == _selectedLayerId
-                            ? StudioPalette.accent
-                            : StudioPalette.border,
-                      ),
+                onTap: layer.isLocked
+                    ? null
+                    : () {
+                        setState(() {
+                          _selectedLayerId = layer.id;
+                        });
+                      },
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(
+                      color: layer.id == _selectedLayerId
+                          ? StudioPalette.accent
+                          : StudioPalette.border,
                     ),
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                    child: Row(
-                      children: <Widget>[
-                        StudioIconButton(
-                          icon: layer.isVisible ? Icons.visibility : Icons.visibility_off,
-                          onPressed: layer.isLocked ? null : () => _toggleLayerVisibility(layer),
-                        ),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: Text(
-                            layer.name,
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: layer.isLocked
-                                  ? StudioPalette.textMuted
-                                  : StudioPalette.textStrong,
-                            ),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  child: Row(
+                    children: <Widget>[
+                      StudioIconButton(
+                        icon: layer.isVisible ? Icons.visibility : Icons.visibility_off,
+                        onPressed: layer.isLocked ? null : () => _toggleLayerVisibility(layer),
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          layer.name,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: layer.isLocked
+                                ? StudioPalette.textMuted
+                                : StudioPalette.textStrong,
                           ),
                         ),
-                        if (layer.isLocked)
-                          const Icon(Icons.lock_outline, size: 15, color: StudioPalette.textMuted),
-                      ],
-                    ),
+                      ),
+                      if (layer.isLocked)
+                        const Icon(Icons.lock_outline, size: 15, color: StudioPalette.textMuted),
+                    ],
                   ),
                 ),
               ),
             ),
-        ],
-      ),
+          ),
+      ],
     );
   }
 

@@ -22,3 +22,4 @@
 - [x] Task 20: Improve layer list ordering and compactness in artwork controls.
 - [x] Task 21: Apply websocket operation sync so drawings persist and propagate across users.
 - [x] Task 22: Redesign the Flutter app UI into a Photoshop-style studio interface across all screens.
+- [T] Task 23: Optimize editor screen real estate with workspace-first layout and mobile floating panes.
