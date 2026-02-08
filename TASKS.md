@@ -34,4 +34,4 @@
 - [x] Task 32: Add contact chat workspace with inline artwork events and prioritize my-turn artworks.
 - [x] Task 33: Fix artwork header title-edit button alignment.
 - [x] Task 34: Add chat gap timestamps and unread indicators for contact chats.
-- [T] Task 35: Add settings page with display-name update and move logout from home toolbar.
+- [x] Task 35: Add settings page with display-name update and move logout from home toolbar.
