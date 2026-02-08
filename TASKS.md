@@ -21,3 +21,4 @@
 - [x] Task 19: Replace unstable eraser compositing path causing black/flicker viewport regression.
 - [x] Task 20: Improve layer list ordering and compactness in artwork controls.
 - [x] Task 21: Apply websocket operation sync so drawings persist and propagate across users.
+- [T] Task 22: Redesign the Flutter app UI into a Photoshop-style studio interface across all screens.

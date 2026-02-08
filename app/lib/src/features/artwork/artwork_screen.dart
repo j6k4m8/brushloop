@@ -7,6 +7,7 @@ import '../../core/app_config.dart';
 import '../../core/models.dart';
 import '../../network/collaboration_socket.dart';
 import '../../state/app_controller.dart';
+import '../../ui/studio_theme.dart';
 import '../../widgets/drawing_canvas.dart';
 
 /// Artwork editor screen with layer controls and drawing tools.
@@ -503,30 +504,48 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
       final result = await showDialog<bool>(
         context: context,
         builder: (context) {
-          return AlertDialog(
-            title: const Text('Add Layer'),
-            content: TextField(
-              controller: nameController,
-              decoration: const InputDecoration(
-                labelText: 'Layer name (optional)',
-                hintText: 'e.g. Shading',
+          return Dialog(
+            child: StudioPanel(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  const Text(
+                    'Add Layer',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: nameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Layer name (optional)',
+                      hintText: 'e.g. Shading',
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: <Widget>[
+                      StudioButton(
+                        label: 'Cancel',
+                        onPressed: () => Navigator.of(context).pop(false),
+                      ),
+                      const SizedBox(width: 8),
+                      StudioButton(
+                        label: 'Add',
+                        onPressed: () {
+                          chosenName = nameController.text.trim().isEmpty
+                              ? null
+                              : nameController.text.trim();
+                          Navigator.of(context).pop(true);
+                        },
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
-            actions: <Widget>[
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(false),
-                child: const Text('Cancel'),
-              ),
-              FilledButton(
-                onPressed: () {
-                  chosenName = nameController.text.trim().isEmpty
-                      ? null
-                      : nameController.text.trim();
-                  Navigator.of(context).pop(true);
-                },
-                child: const Text('Add'),
-              ),
-            ],
           );
         },
       );
@@ -574,58 +593,215 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
     final details = _details;
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.artwork.title),
-        actions: <Widget>[
-          IconButton(
-            onPressed: _undo,
-            tooltip: 'Undo',
-            icon: const Icon(Icons.undo),
+      body: StudioBackdrop(
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(10),
+            child: _loading
+                ? const Center(child: CircularProgressIndicator())
+                : _error != null
+                    ? Center(
+                        child: Text(
+                          _error!,
+                          style: const TextStyle(color: StudioPalette.textMuted),
+                        ),
+                      )
+                    : details == null
+                        ? const Center(
+                            child: Text(
+                              'Artwork details unavailable',
+                              style: TextStyle(color: StudioPalette.textMuted),
+                            ),
+                          )
+                        : LayoutBuilder(
+                            builder: (context, constraints) {
+                              final wideLayout = constraints.maxWidth > 1150;
+                              final compactLayout = constraints.maxWidth < 860;
+
+                              return Column(
+                                children: <Widget>[
+                                  _buildTopToolbar(details),
+                                  const SizedBox(height: 10),
+                                  Expanded(
+                                    child: compactLayout
+                                        ? Column(
+                                            children: <Widget>[
+                                              _buildCompactToolRow(),
+                                              const SizedBox(height: 8),
+                                              Expanded(child: _buildCanvas(details)),
+                                              const SizedBox(height: 8),
+                                              SizedBox(
+                                                height: 270,
+                                                child: _buildControlsPanel(details),
+                                              ),
+                                            ],
+                                          )
+                                        : Row(
+                                            children: <Widget>[
+                                              SizedBox(
+                                                width: 50,
+                                                child: _buildToolRail(),
+                                              ),
+                                              const SizedBox(width: 10),
+                                              Expanded(child: _buildCanvas(details)),
+                                              const SizedBox(width: 10),
+                                              SizedBox(
+                                                width: wideLayout ? 320 : 280,
+                                                child: _buildControlsPanel(details),
+                                              ),
+                                            ],
+                                          ),
+                                  ),
+                                ],
+                              );
+                            },
+                          ),
           ),
-          IconButton(
-            onPressed: _redo,
-            tooltip: 'Redo',
-            icon: const Icon(Icons.redo),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTopToolbar(ArtworkDetails details) {
+    final turn = details.currentTurn;
+    return StudioPanel(
+      color: StudioPalette.chrome,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      child: Row(
+        children: <Widget>[
+          StudioIconButton(
+            icon: Icons.arrow_back,
+            tooltip: 'Back',
+            onPressed: () => Navigator.of(context).maybePop(),
           ),
-          if (details?.artwork.mode == ArtworkMode.turnBased)
-            FilledButton.icon(
-              onPressed: _canEdit ? _submitTurn : null,
-              icon: const Icon(Icons.check),
-              label: const Text('Submit Turn'),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  details.artwork.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                Text(
+                  details.artwork.mode == ArtworkMode.realTime
+                      ? 'Real-time'
+                      : 'Turn-based',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: StudioPalette.textMuted,
+                  ),
+                ),
+              ],
             ),
-          const SizedBox(width: 12),
+          ),
+          if (turn != null)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: Text(
+                'Turn ${turn.turnNumber}',
+                style: const TextStyle(fontSize: 12, color: StudioPalette.textMuted),
+              ),
+            ),
+          if (details.artwork.mode == ArtworkMode.turnBased)
+            StudioButton(
+              label: 'Submit Turn',
+              icon: Icons.check,
+              onPressed: _canEdit ? _submitTurn : null,
+            ),
         ],
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _error != null
-              ? Center(child: Text(_error!))
-              : details == null
-                  ? const Center(child: Text('Artwork details unavailable'))
-                  : LayoutBuilder(
-                      builder: (context, constraints) {
-                        final controls = _buildControlsPanel(context, details);
-                        final canvas = _buildCanvas(details);
+    );
+  }
 
-                        if (constraints.maxWidth > 980) {
-                          return Row(
-                            children: <Widget>[
-                              SizedBox(width: 320, child: controls),
-                              const VerticalDivider(width: 1),
-                              Expanded(child: canvas),
-                            ],
-                          );
-                        }
+  Widget _buildToolRail() {
+    return StudioPanel(
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
+      color: StudioPalette.chrome,
+      child: Column(
+        children: <Widget>[
+          StudioIconButton(
+            icon: Icons.brush_outlined,
+            tooltip: 'Brush',
+            active: _tool == _EditorTool.brush,
+            onPressed: () => setState(() => _tool = _EditorTool.brush),
+          ),
+          const SizedBox(height: 6),
+          StudioIconButton(
+            icon: Icons.auto_fix_high,
+            tooltip: 'Eraser',
+            active: _tool == _EditorTool.eraser,
+            onPressed: () => setState(() => _tool = _EditorTool.eraser),
+          ),
+          const Divider(height: 14),
+          StudioIconButton(
+            icon: Icons.undo,
+            tooltip: 'Undo',
+            onPressed: _undo,
+          ),
+          const SizedBox(height: 6),
+          StudioIconButton(
+            icon: Icons.redo,
+            tooltip: 'Redo',
+            onPressed: _redo,
+          ),
+          const Spacer(),
+          Icon(
+            _canEdit ? Icons.lock_open_outlined : Icons.lock_outline,
+            size: 16,
+            color: _canEdit ? StudioPalette.success : StudioPalette.textMuted,
+          ),
+        ],
+      ),
+    );
+  }
 
-                        return Column(
-                          children: <Widget>[
-                            SizedBox(height: 260, child: controls),
-                            const Divider(height: 1),
-                            Expanded(child: canvas),
-                          ],
-                        );
-                      },
-                    ),
+  Widget _buildCompactToolRow() {
+    return StudioPanel(
+      color: StudioPalette.chrome,
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      child: Row(
+        children: <Widget>[
+          StudioIconButton(
+            icon: Icons.brush_outlined,
+            tooltip: 'Brush',
+            active: _tool == _EditorTool.brush,
+            onPressed: () => setState(() => _tool = _EditorTool.brush),
+          ),
+          const SizedBox(width: 6),
+          StudioIconButton(
+            icon: Icons.auto_fix_high,
+            tooltip: 'Eraser',
+            active: _tool == _EditorTool.eraser,
+            onPressed: () => setState(() => _tool = _EditorTool.eraser),
+          ),
+          const SizedBox(width: 6),
+          StudioIconButton(
+            icon: Icons.undo,
+            tooltip: 'Undo',
+            onPressed: _undo,
+          ),
+          const SizedBox(width: 6),
+          StudioIconButton(
+            icon: Icons.redo,
+            tooltip: 'Redo',
+            onPressed: _redo,
+          ),
+          const Spacer(),
+          Text(
+            _canEdit ? 'Editing enabled' : 'Read-only',
+            style: TextStyle(
+              fontSize: 12,
+              color: _canEdit ? StudioPalette.success : StudioPalette.textMuted,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -637,52 +813,62 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
     final layerOrder = <String, int>{
       for (final layer in details.layers) layer.id: layer.sortOrder,
     };
+    final artworkAspectRatio = details.artwork.height == 0
+        ? 1.0
+        : details.artwork.width / details.artwork.height;
 
-    return Padding(
-      padding: const EdgeInsets.all(12),
-      child: DecoratedBox(
+    return StudioPanel(
+      color: StudioPalette.chrome,
+      padding: const EdgeInsets.all(14),
+      child: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFFD4D4D8)),
-          boxShadow: const <BoxShadow>[
-            BoxShadow(
-              color: Color(0x14000000),
-              blurRadius: 12,
-              offset: Offset(0, 6),
-            ),
-          ],
+          color: const Color(0xFF1B1B1B),
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: StudioPalette.border),
         ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: Stack(
-            fit: StackFit.expand,
-            children: <Widget>[
-              if (details.artwork.basePhotoPath case final photoPath?)
-                IgnorePointer(
-                  child: Image.network(
-                    _resolveMediaUrl(photoPath),
-                    fit: BoxFit.cover,
-                    headers: <String, String>{
-                      if (widget.controller.session case final session?)
-                        'Authorization': 'Bearer ${session.token}',
-                    },
-                    errorBuilder: (context, error, stackTrace) {
-                      return const SizedBox.shrink();
-                    },
-                  ),
-                ),
-              DrawingCanvas(
-                strokes: _strokes,
-                activeStroke: _activeStroke,
-                visibleLayerIds: visibleLayerIds,
-                layerOrder: layerOrder,
-                canEdit: _canEdit,
-                onPanStart: _onPanStart,
-                onPanUpdate: _onPanUpdate,
-                onPanEnd: _onPanEnd,
+        child: Center(
+          child: AspectRatio(
+            aspectRatio: artworkAspectRatio,
+            child: Container(
+              margin: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF5F5F5),
+                border: Border.all(color: const Color(0xFFCCCCCC)),
+                borderRadius: BorderRadius.circular(4),
               ),
-            ],
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(3),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: <Widget>[
+                    if (details.artwork.basePhotoPath case final photoPath?)
+                      IgnorePointer(
+                        child: Image.network(
+                          _resolveMediaUrl(photoPath),
+                          fit: BoxFit.cover,
+                          headers: <String, String>{
+                            if (widget.controller.session case final session?)
+                              'Authorization': 'Bearer ${session.token}',
+                          },
+                          errorBuilder: (context, error, stackTrace) {
+                            return const SizedBox.shrink();
+                          },
+                        ),
+                      ),
+                    DrawingCanvas(
+                      strokes: _strokes,
+                      activeStroke: _activeStroke,
+                      visibleLayerIds: visibleLayerIds,
+                      layerOrder: layerOrder,
+                      canEdit: _canEdit,
+                      onPanStart: _onPanStart,
+                      onPanUpdate: _onPanUpdate,
+                      onPanEnd: _onPanEnd,
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
         ),
       ),
@@ -701,7 +887,7 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
     return '$base$suffix';
   }
 
-  Widget _buildControlsPanel(BuildContext context, ArtworkDetails details) {
+  Widget _buildControlsPanel(ArtworkDetails details) {
     final palette = <Color>[
       const Color(0xFF111827),
       const Color(0xFF0E7490),
@@ -716,151 +902,144 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
     final displayLayers = details.layers.toList()
       ..sort((a, b) => b.sortOrder.compareTo(a.sortOrder));
 
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: <Widget>[
-        Text('Collaboration', style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 8),
-        Chip(
-          label: Text(
+    return StudioPanel(
+      child: ListView(
+        children: <Widget>[
+          const StudioSectionLabel('Collaboration'),
+          const SizedBox(height: 6),
+          Text(
             details.artwork.mode == ArtworkMode.realTime
                 ? 'Mode: Real-time'
                 : 'Mode: Turn-based',
+            style: const TextStyle(fontSize: 12, color: StudioPalette.textMuted),
           ),
-        ),
-        if (turn != null)
-          Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: Text(
-              'Turn ${turn.turnNumber}: ${activeUser ?? 'Unknown'}\n'
-              'Due: ${turn.dueAt ?? 'No timer'}',
+          if (turn != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                'Turn ${turn.turnNumber}: ${activeUser ?? 'Unknown'}\n'
+                'Due: ${turn.dueAt ?? 'No timer'}',
+                style: const TextStyle(fontSize: 12, color: StudioPalette.textMuted),
+              ),
             ),
+          const SizedBox(height: 14),
+          const StudioSectionLabel('Brush'),
+          const SizedBox(height: 8),
+          Text(
+            '${_tool == _EditorTool.eraser ? 'Eraser' : 'Brush'} Size ${_brushSize.toStringAsFixed(0)}',
+            style: const TextStyle(fontSize: 12, color: StudioPalette.textMuted),
           ),
-        const SizedBox(height: 20),
-        Text('Tools', style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 8),
-        SegmentedButton<_EditorTool>(
-          segments: const <ButtonSegment<_EditorTool>>[
-            ButtonSegment<_EditorTool>(
-              value: _EditorTool.brush,
-              label: Text('Brush'),
-              icon: Icon(Icons.brush_outlined),
-            ),
-            ButtonSegment<_EditorTool>(
-              value: _EditorTool.eraser,
-              label: Text('Eraser'),
-              icon: Icon(Icons.auto_fix_high),
-            ),
-          ],
-          selected: <_EditorTool>{_tool},
-          onSelectionChanged: (value) {
-            setState(() {
-              _tool = value.first;
-            });
-          },
-        ),
-        const SizedBox(height: 12),
-        Text(
-          '${_tool == _EditorTool.eraser ? 'Eraser' : 'Brush'} Size '
-          '${_brushSize.toStringAsFixed(0)}',
-        ),
-        Slider(
-          value: _brushSize,
-          min: 2,
-          max: 36,
-          onChanged: (value) {
-            setState(() {
-              _brushSize = value;
-            });
-          },
-        ),
-        const SizedBox(height: 8),
-        Text('Color', style: Theme.of(context).textTheme.titleSmall),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: palette
-              .map(
-                (color) => GestureDetector(
-                  onTap: _tool == _EditorTool.eraser
-                      ? null
-                      : () {
-                          setState(() {
-                            _brushColor = color;
-                          });
-                        },
-                  child: Container(
-                    width: 28,
-                    height: 28,
-                    decoration: BoxDecoration(
-                      color: color,
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: _brushColor == color
-                            ? Colors.black
-                            : Colors.transparent,
-                        width: 2,
+          Slider(
+            value: _brushSize,
+            min: 2,
+            max: 36,
+            onChanged: (value) {
+              setState(() {
+                _brushSize = value;
+              });
+            },
+          ),
+          const SizedBox(height: 6),
+          const StudioSectionLabel('Color'),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: palette
+                .map(
+                  (color) => GestureDetector(
+                    onTap: _tool == _EditorTool.eraser
+                        ? null
+                        : () {
+                            setState(() {
+                              _brushColor = color;
+                            });
+                          },
+                    child: Container(
+                      width: 24,
+                      height: 24,
+                      decoration: BoxDecoration(
+                        color: color,
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(
+                          color: _brushColor == color
+                              ? StudioPalette.textStrong
+                              : StudioPalette.border,
+                          width: _brushColor == color ? 2 : 1,
+                        ),
                       ),
                     ),
                   ),
-                ),
-              )
-              .toList(),
-        ),
-        const SizedBox(height: 20),
-        Row(
-          children: <Widget>[
-            Expanded(
-              child: Text(
-                'Layers',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-            ),
-            IconButton(
-              onPressed: _canEdit ? _addLayer : null,
-              icon: const Icon(Icons.add),
-              tooltip: 'Add Layer',
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        for (final layer in displayLayers)
-          Card(
-            child: ListTile(
-              dense: true,
-              visualDensity: VisualDensity.compact,
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 10,
-                vertical: 2,
-              ),
-              minLeadingWidth: 28,
-              leading: IconButton(
-                onPressed:
-                    layer.isLocked ? null : () => _toggleLayerVisibility(layer),
-                constraints: const BoxConstraints.tightFor(
-                  width: 28,
-                  height: 28,
-                ),
-                padding: EdgeInsets.zero,
-                iconSize: 18,
-                icon: Icon(
-                  layer.isVisible ? Icons.visibility : Icons.visibility_off,
-                ),
-              ),
-              title: Text(layer.name),
-              trailing: layer.id == _selectedLayerId
-                  ? const Icon(Icons.check_circle, size: 18)
-                  : const Icon(Icons.radio_button_unchecked, size: 18),
-              onTap: layer.isLocked
-                  ? null
-                  : () {
-                      setState(() {
-                        _selectedLayerId = layer.id;
-                      });
-                    },
-            ),
+                )
+                .toList(),
           ),
-      ],
+          const SizedBox(height: 14),
+          Row(
+            children: <Widget>[
+              const Expanded(child: StudioSectionLabel('Layers')),
+              StudioIconButton(
+                icon: Icons.add,
+                tooltip: 'Add Layer',
+                onPressed: _canEdit ? _addLayer : null,
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          for (final layer in displayLayers)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Material(
+                color: layer.id == _selectedLayerId
+                    ? const Color(0xFF3A3A3A)
+                    : StudioPalette.panelSoft,
+                borderRadius: BorderRadius.circular(4),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(4),
+                  onTap: layer.isLocked
+                      ? null
+                      : () {
+                          setState(() {
+                            _selectedLayerId = layer.id;
+                          });
+                        },
+                  child: Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(
+                        color: layer.id == _selectedLayerId
+                            ? StudioPalette.accent
+                            : StudioPalette.border,
+                      ),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                    child: Row(
+                      children: <Widget>[
+                        StudioIconButton(
+                          icon: layer.isVisible ? Icons.visibility : Icons.visibility_off,
+                          onPressed: layer.isLocked ? null : () => _toggleLayerVisibility(layer),
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            layer.name,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: layer.isLocked
+                                  ? StudioPalette.textMuted
+                                  : StudioPalette.textStrong,
+                            ),
+                          ),
+                        ),
+                        if (layer.isLocked)
+                          const Icon(Icons.lock_outline, size: 15, color: StudioPalette.textMuted),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../state/app_controller.dart';
+import '../../ui/studio_theme.dart';
 
 /// Authentication screen supporting login and registration.
 class AuthScreen extends StatefulWidget {
@@ -68,12 +69,11 @@ class _AuthScreenState extends State<AuthScreen> {
     final controller = widget.controller;
 
     return Scaffold(
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 420),
-          child: Card(
-            margin: const EdgeInsets.all(24),
-            child: Padding(
+      body: StudioBackdrop(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 480),
+            child: StudioPanel(
               padding: const EdgeInsets.all(20),
               child: AnimatedBuilder(
                 animation: controller,
@@ -82,69 +82,79 @@ class _AuthScreenState extends State<AuthScreen> {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: <Widget>[
-                      Text(
-                        'BrushLoop',
-                        style: Theme.of(context).textTheme.headlineMedium,
+                      const Text(
+                        'BRUSHLOOP',
                         textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 26,
+                          letterSpacing: 2,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 6),
                       Text(
                         _registerMode
-                            ? 'Create your account'
-                            : 'Sign in to collaborate',
+                            ? 'Create your studio account'
+                            : 'Sign in to your studio',
                         textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: StudioPalette.textMuted,
+                          fontSize: 13,
+                        ),
                       ),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 18),
                       if (_registerMode)
                         TextField(
                           controller: _displayNameController,
                           decoration: const InputDecoration(
                             labelText: 'Display name',
-                            border: OutlineInputBorder(),
                           ),
                         ),
-                      if (_registerMode) const SizedBox(height: 12),
+                      if (_registerMode) const SizedBox(height: 10),
                       TextField(
                         controller: _emailController,
                         keyboardType: TextInputType.emailAddress,
                         autocorrect: false,
                         decoration: const InputDecoration(
                           labelText: 'Email',
-                          border: OutlineInputBorder(),
                         ),
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 10),
                       TextField(
                         controller: _passwordController,
                         obscureText: true,
                         decoration: const InputDecoration(
                           labelText: 'Password',
-                          border: OutlineInputBorder(),
                         ),
                       ),
-                      const SizedBox(height: 16),
-                      FilledButton(
+                      const SizedBox(height: 14),
+                      StudioButton(
+                        label: _registerMode ? 'Create Account' : 'Sign In',
                         onPressed: controller.isBusy ? null : _submit,
-                        child: Text(_registerMode ? 'Create Account' : 'Sign In'),
                       ),
-                      TextButton(
-                        onPressed: controller.isBusy
-                            ? null
-                            : () {
-                                setState(() {
-                                  _registerMode = !_registerMode;
-                                });
-                              },
-                        child: Text(
-                          _registerMode
-                              ? 'Already have an account? Sign in'
-                              : 'Need an account? Register',
+                      const SizedBox(height: 8),
+                      Align(
+                        alignment: Alignment.center,
+                        child: TextButton(
+                          onPressed: controller.isBusy
+                              ? null
+                              : () {
+                                  setState(() {
+                                    _registerMode = !_registerMode;
+                                  });
+                                },
+                          child: Text(
+                            _registerMode
+                                ? 'Already have an account? Sign in'
+                                : 'Need an account? Register',
+                            style: const TextStyle(color: StudioPalette.textMuted),
+                          ),
                         ),
                       ),
                       if (controller.isBusy)
                         const Padding(
-                          padding: EdgeInsets.only(top: 8),
-                          child: Center(child: CircularProgressIndicator()),
+                          padding: EdgeInsets.only(top: 6),
+                          child: LinearProgressIndicator(minHeight: 2),
                         ),
                     ],
                   );

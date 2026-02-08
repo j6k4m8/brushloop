@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../core/models.dart';
 import '../../state/app_controller.dart';
+import '../../ui/studio_theme.dart';
 import '../artwork/artwork_screen.dart';
 import 'pending_invites_screen.dart';
 
@@ -22,28 +23,46 @@ class HomeScreen extends StatelessWidget {
       await showDialog<void>(
         context: context,
         builder: (context) {
-          return AlertDialog(
-            title: const Text('Invite Contact'),
-            content: TextField(
-              controller: emailController,
-              decoration: const InputDecoration(labelText: 'Email'),
-              keyboardType: TextInputType.emailAddress,
+          return Dialog(
+            child: StudioPanel(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  const Text(
+                    'Invite Contact',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: emailController,
+                    decoration: const InputDecoration(labelText: 'Email'),
+                    keyboardType: TextInputType.emailAddress,
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: <Widget>[
+                      StudioButton(
+                        label: 'Cancel',
+                        onPressed: () => Navigator.of(context).pop(),
+                      ),
+                      const SizedBox(width: 8),
+                      StudioButton(
+                        label: 'Send Invite',
+                        onPressed: () async {
+                          await controller.inviteContact(emailController.text.trim());
+                          if (context.mounted) {
+                            Navigator.of(context).pop();
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-            actions: <Widget>[
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Cancel'),
-              ),
-              FilledButton(
-                onPressed: () async {
-                  await controller.inviteContact(emailController.text.trim());
-                  if (context.mounted) {
-                    Navigator.of(context).pop();
-                  }
-                },
-                child: const Text('Send Invite'),
-              ),
-            ],
           );
         },
       );
@@ -84,72 +103,96 @@ class HomeScreen extends StatelessWidget {
       animation: controller,
       builder: (context, _) {
         return Scaffold(
-          appBar: AppBar(
-            title: const Text('BrushLoop'),
-            actions: <Widget>[
-              IconButton(
-                onPressed: controller.isBusy ? null : controller.refreshHome,
-                icon: const Icon(Icons.refresh),
-                tooltip: 'Refresh',
-              ),
-              IconButton(
-                onPressed: controller.logout,
-                icon: const Icon(Icons.logout),
-                tooltip: 'Sign out',
-              ),
-            ],
-          ),
-          floatingActionButton: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              FloatingActionButton.extended(
-                heroTag: 'invite-contact',
-                onPressed: () => _openInviteDialog(context),
-                icon: const Icon(Icons.person_add),
-                label: const Text('Invite'),
-              ),
-              const SizedBox(height: 12),
-              FloatingActionButton.extended(
-                heroTag: 'new-artwork',
-                onPressed: () => _openCreateArtworkDialog(context),
-                icon: const Icon(Icons.brush),
-                label: const Text('New Artwork'),
-              ),
-            ],
-          ),
-          body: controller.isBusy
-              ? const Center(child: CircularProgressIndicator())
-              : LayoutBuilder(
-                  builder: (context, constraints) {
-                    final twoPane = constraints.maxWidth > 900;
-                    final contactsPane = _ContactsPane(
-                      controller: controller,
-                      onOpenPendingInvites: () => _openPendingInvites(context),
-                    );
-                    final artworksPane = _ArtworksPane(
-                      controller: controller,
-                      onTapArtwork: (item) => _openArtwork(context, item),
-                    );
-
-                    if (twoPane) {
-                      return Row(
+          body: StudioBackdrop(
+            child: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  children: <Widget>[
+                    StudioPanel(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      color: StudioPalette.chrome,
+                      child: Row(
                         children: <Widget>[
-                          Expanded(flex: 4, child: contactsPane),
-                          const VerticalDivider(width: 1),
-                          Expanded(flex: 6, child: artworksPane),
+                          const Icon(Icons.palette_outlined, size: 18),
+                          const SizedBox(width: 8),
+                          const Expanded(
+                            child: Text(
+                              'BrushLoop Studio',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.3,
+                              ),
+                            ),
+                          ),
+                          StudioIconButton(
+                            icon: Icons.refresh,
+                            tooltip: 'Refresh',
+                            onPressed: controller.isBusy ? null : controller.refreshHome,
+                          ),
+                          const SizedBox(width: 6),
+                          StudioButton(
+                            label: 'Invite',
+                            icon: Icons.person_add_alt_1,
+                            onPressed: () => _openInviteDialog(context),
+                          ),
+                          const SizedBox(width: 6),
+                          StudioButton(
+                            label: 'New Artwork',
+                            icon: Icons.add_photo_alternate_outlined,
+                            onPressed: () => _openCreateArtworkDialog(context),
+                          ),
+                          const SizedBox(width: 6),
+                          StudioIconButton(
+                            icon: Icons.logout,
+                            tooltip: 'Sign out',
+                            onPressed: controller.logout,
+                          ),
                         ],
-                      );
-                    }
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: controller.isBusy
+                          ? const Center(child: CircularProgressIndicator())
+                          : LayoutBuilder(
+                              builder: (context, constraints) {
+                                final twoPane = constraints.maxWidth > 900;
+                                final contactsPane = _ContactsPane(
+                                  controller: controller,
+                                  onOpenPendingInvites: () => _openPendingInvites(context),
+                                );
+                                final artworksPane = _ArtworksPane(
+                                  controller: controller,
+                                  onTapArtwork: (item) => _openArtwork(context, item),
+                                );
 
-                    return ListView(
-                      children: <Widget>[
-                        SizedBox(height: 320, child: contactsPane),
-                        const Divider(height: 1),
-                        SizedBox(height: 420, child: artworksPane),
-                      ],
-                    );
-                  },
+                                if (twoPane) {
+                                  return Row(
+                                    children: <Widget>[
+                                      SizedBox(width: 340, child: contactsPane),
+                                      const SizedBox(width: 10),
+                                      Expanded(child: artworksPane),
+                                    ],
+                                  );
+                                }
+
+                                return Column(
+                                  children: <Widget>[
+                                    Expanded(flex: 4, child: contactsPane),
+                                    const SizedBox(height: 10),
+                                    Expanded(flex: 5, child: artworksPane),
+                                  ],
+                                );
+                              },
+                            ),
+                    ),
+                  ],
                 ),
+              ),
+            ),
+          ),
         );
       },
     );
@@ -271,164 +314,184 @@ class _CreateArtworkDialogState extends State<_CreateArtworkDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Create Artwork'),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            if (widget.controller.contacts.isNotEmpty)
-              SwitchListTile.adaptive(
-                value: _soloArtwork,
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Solo Artwork'),
-                subtitle: const Text('Create this artwork just for yourself'),
-                onChanged: _isSubmitting
-                    ? null
-                    : (value) {
-                        setState(() {
-                          _soloArtwork = value;
-                        });
-                      },
-              ),
-            if (!_soloArtwork && widget.controller.contacts.isNotEmpty) ...<Widget>[
-              DropdownButtonFormField<ContactSummary>(
-                initialValue: _selectedContact,
-                decoration: const InputDecoration(labelText: 'Contact'),
-                items: widget.controller.contacts
-                    .map(
-                      (contact) => DropdownMenuItem<ContactSummary>(
-                        value: contact,
-                        child: Text(contact.displayName),
-                      ),
-                    )
-                    .toList(),
-                onChanged: _isSubmitting
-                    ? null
-                    : (value) {
-                        if (value == null) {
-                          return;
-                        }
-                        setState(() {
-                          _selectedContact = value;
-                        });
-                      },
-              ),
-              const SizedBox(height: 12),
-            ],
-            DropdownButtonFormField<ArtworkMode>(
-              initialValue: _mode,
-              decoration: const InputDecoration(labelText: 'Mode'),
-              items: const <DropdownMenuItem<ArtworkMode>>[
-                DropdownMenuItem(
-                  value: ArtworkMode.realTime,
-                  child: Text('Real-time'),
-                ),
-                DropdownMenuItem(
-                  value: ArtworkMode.turnBased,
-                  child: Text('Turn-based'),
-                ),
-              ],
-              onChanged: _isSubmitting
-                  ? null
-                  : (value) {
-                      if (value == null) {
-                        return;
-                      }
-                      setState(() {
-                        _mode = value;
-                      });
-                    },
-            ),
-            const SizedBox(height: 14),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'Base Photo (optional)',
-                style: Theme.of(context).textTheme.titleSmall,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Row(
+    return Dialog(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 520),
+        child: StudioPanel(
+          padding: const EdgeInsets.all(14),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: _isSubmitting || _isPickingPhoto
-                        ? null
-                        : () => _pickPhoto(ImageSource.camera),
-                    icon: const Icon(Icons.photo_camera_outlined),
-                    label: const Text('Camera'),
-                  ),
+                const Text(
+                  'Create Artwork',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: _isSubmitting || _isPickingPhoto
+                const SizedBox(height: 10),
+                if (widget.controller.contacts.isNotEmpty)
+                  CheckboxListTile(
+                    value: _soloArtwork,
+                    contentPadding: EdgeInsets.zero,
+                    dense: true,
+                    title: const Text('Solo Artwork'),
+                    subtitle: const Text(
+                      'Create this artwork just for yourself',
+                      style: TextStyle(fontSize: 12, color: StudioPalette.textMuted),
+                    ),
+                    onChanged: _isSubmitting
                         ? null
-                        : () => _pickPhoto(ImageSource.gallery),
-                    icon: const Icon(Icons.photo_library_outlined),
-                    label: const Text('Gallery'),
+                        : (value) {
+                            setState(() {
+                              _soloArtwork = value ?? false;
+                            });
+                          },
                   ),
+                if (!_soloArtwork && widget.controller.contacts.isNotEmpty) ...<Widget>[
+                  DropdownButtonFormField<ContactSummary>(
+                    initialValue: _selectedContact,
+                    decoration: const InputDecoration(labelText: 'Contact'),
+                    items: widget.controller.contacts
+                        .map(
+                          (contact) => DropdownMenuItem<ContactSummary>(
+                            value: contact,
+                            child: Text(contact.displayName),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: _isSubmitting
+                        ? null
+                        : (value) {
+                            if (value == null) {
+                              return;
+                            }
+                            setState(() {
+                              _selectedContact = value;
+                            });
+                          },
+                  ),
+                  const SizedBox(height: 10),
+                ],
+                DropdownButtonFormField<ArtworkMode>(
+                  initialValue: _mode,
+                  decoration: const InputDecoration(labelText: 'Mode'),
+                  items: const <DropdownMenuItem<ArtworkMode>>[
+                    DropdownMenuItem(
+                      value: ArtworkMode.realTime,
+                      child: Text('Real-time'),
+                    ),
+                    DropdownMenuItem(
+                      value: ArtworkMode.turnBased,
+                      child: Text('Turn-based'),
+                    ),
+                  ],
+                  onChanged: _isSubmitting
+                      ? null
+                      : (value) {
+                          if (value == null) {
+                            return;
+                          }
+                          setState(() {
+                            _mode = value;
+                          });
+                        },
                 ),
-              ],
-            ),
-            if (_isPickingPhoto)
-              const Padding(
-                padding: EdgeInsets.only(top: 8),
-                child: LinearProgressIndicator(),
-              ),
-            if (_photo != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 12),
-                child: Column(
+                const SizedBox(height: 14),
+                const StudioSectionLabel('Base Photo'),
+                const SizedBox(height: 8),
+                Row(
                   children: <Widget>[
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: Image.memory(
-                        _photo!.bytes,
-                        width: 240,
-                        height: 150,
-                        fit: BoxFit.cover,
+                    Expanded(
+                      child: StudioButton(
+                        label: 'Camera',
+                        icon: Icons.photo_camera_outlined,
+                        onPressed: _isSubmitting || _isPickingPhoto
+                            ? null
+                            : () => _pickPhoto(ImageSource.camera),
                       ),
                     ),
-                    const SizedBox(height: 6),
-                    Text(
-                      _photo!.filename,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    TextButton(
-                      onPressed: _isSubmitting
-                          ? null
-                          : () {
-                              setState(() {
-                                _photo = null;
-                              });
-                            },
-                      child: const Text('Remove Photo'),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: StudioButton(
+                        label: 'Gallery',
+                        icon: Icons.photo_library_outlined,
+                        onPressed: _isSubmitting || _isPickingPhoto
+                            ? null
+                            : () => _pickPhoto(ImageSource.gallery),
+                      ),
                     ),
                   ],
                 ),
-              ),
-          ],
+                if (_isPickingPhoto)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 8),
+                    child: LinearProgressIndicator(minHeight: 2),
+                  ),
+                if (_photo != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 10),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: StudioPalette.panelSoft,
+                        border: Border.all(color: StudioPalette.border),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      padding: const EdgeInsets.all(8),
+                      child: Row(
+                        children: <Widget>[
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(4),
+                            child: Image.memory(
+                              _photo!.bytes,
+                              width: 84,
+                              height: 60,
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _photo!.filename,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                          ),
+                          StudioIconButton(
+                            icon: Icons.close,
+                            tooltip: 'Remove',
+                            onPressed: _isSubmitting
+                                ? null
+                                : () {
+                                    setState(() {
+                                      _photo = null;
+                                    });
+                                  },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                const SizedBox(height: 14),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: <Widget>[
+                    StudioButton(
+                      label: 'Cancel',
+                      onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(),
+                    ),
+                    const SizedBox(width: 8),
+                    StudioButton(
+                      label: _isSubmitting ? 'Creating...' : 'Create',
+                      onPressed: _isSubmitting ? null : _submit,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
         ),
       ),
-      actions: <Widget>[
-        TextButton(
-          onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          onPressed: _isSubmitting ? null : _submit,
-          child: _isSubmitting
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Text('Create'),
-        ),
-      ],
     );
   }
 }
@@ -456,47 +519,72 @@ class _ContactsPane extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: <Widget>[
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 8, 8),
-          child: Row(
+    return StudioPanel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          Row(
             children: <Widget>[
-              Expanded(
-                child: Text(
-                  'Contacts',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-              ),
-              TextButton.icon(
+              const Expanded(child: StudioSectionLabel('Contacts')),
+              StudioButton(
+                label: 'Pending (${controller.pendingInvitations.length})',
+                icon: Icons.mark_email_unread_outlined,
                 onPressed: onOpenPendingInvites,
-                icon: const Icon(Icons.mark_email_unread_outlined),
-                label: Text(
-                  'Pending Invites (${controller.pendingInvitations.length})',
-                ),
               ),
             ],
           ),
-        ),
-        Expanded(
-          child: controller.contacts.isEmpty
-              ? const Center(
-                  child: Text('No contacts yet. Invite someone to collaborate.'),
-                )
-              : ListView.builder(
-                  itemCount: controller.contacts.length,
-                  itemBuilder: (context, index) {
-                    final contact = controller.contacts[index];
-                    return ListTile(
-                      leading: const Icon(Icons.person_outline),
-                      title: Text(contact.displayName),
-                      subtitle: Text(contact.email),
-                    );
-                  },
-                ),
-        ),
-      ],
+          const SizedBox(height: 10),
+          Expanded(
+            child: controller.contacts.isEmpty
+                ? const Center(
+                    child: Text(
+                      'No contacts yet. Invite someone to collaborate.',
+                      style: TextStyle(color: StudioPalette.textMuted),
+                    ),
+                  )
+                : ListView.separated(
+                    itemCount: controller.contacts.length,
+                    separatorBuilder: (context, index) => const SizedBox(height: 6),
+                    itemBuilder: (context, index) {
+                      final contact = controller.contacts[index];
+                      return Container(
+                        decoration: BoxDecoration(
+                          color: StudioPalette.panelSoft,
+                          border: Border.all(color: StudioPalette.border),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        child: Row(
+                          children: <Widget>[
+                            const Icon(Icons.person_outline, size: 17),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: <Widget>[
+                                  Text(
+                                    contact.displayName,
+                                    style: const TextStyle(fontWeight: FontWeight.w600),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    contact.email,
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: StudioPalette.textMuted,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -512,42 +600,81 @@ class _ArtworksPane extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: <Widget>[
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: Text(
-            'Active Artworks',
-            style: Theme.of(context).textTheme.titleLarge,
+    return StudioPanel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          const StudioSectionLabel('Active Artworks'),
+          const SizedBox(height: 10),
+          Expanded(
+            child: controller.artworks.isEmpty
+                ? const Center(
+                    child: Text(
+                      'No artworks yet.',
+                      style: TextStyle(color: StudioPalette.textMuted),
+                    ),
+                  )
+                : ListView.separated(
+                    itemCount: controller.artworks.length,
+                    separatorBuilder: (context, index) => const SizedBox(height: 6),
+                    itemBuilder: (context, index) {
+                      final artwork = controller.artworks[index];
+                      return Material(
+                        color: StudioPalette.panelSoft,
+                        borderRadius: BorderRadius.circular(4),
+                        child: InkWell(
+                          onTap: () => onTapArtwork(artwork),
+                          borderRadius: BorderRadius.circular(4),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              border: Border.all(color: StudioPalette.border),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 9,
+                            ),
+                            child: Row(
+                              children: <Widget>[
+                                Icon(
+                                  artwork.mode == ArtworkMode.realTime
+                                      ? Icons.bolt
+                                      : Icons.schedule,
+                                  size: 17,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: <Widget>[
+                                      Text(
+                                        artwork.title,
+                                        style: const TextStyle(fontWeight: FontWeight.w600),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        artwork.mode == ArtworkMode.realTime
+                                            ? 'Real-time collaboration'
+                                            : 'Turn-based collaboration',
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          color: StudioPalette.textMuted,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const Icon(Icons.chevron_right, size: 18),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
           ),
-        ),
-        Expanded(
-          child: controller.artworks.isEmpty
-              ? const Center(child: Text('No artworks yet.'))
-              : ListView.builder(
-                  itemCount: controller.artworks.length,
-                  itemBuilder: (context, index) {
-                    final artwork = controller.artworks[index];
-                    return ListTile(
-                      leading: Icon(
-                        artwork.mode == ArtworkMode.realTime
-                            ? Icons.flash_on
-                            : Icons.hourglass_bottom,
-                      ),
-                      title: Text(artwork.title),
-                      subtitle: Text(
-                        artwork.mode == ArtworkMode.realTime
-                            ? 'Real-time collaboration'
-                            : 'Turn-based collaboration',
-                      ),
-                      trailing: const Icon(Icons.chevron_right),
-                      onTap: () => onTapArtwork(artwork),
-                    );
-                  },
-                ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

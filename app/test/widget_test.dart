@@ -6,7 +6,7 @@ void main() {
   testWidgets('app renders BrushLoop auth shell', (WidgetTester tester) async {
     await tester.pumpWidget(const BrushLoopApp());
 
-    expect(find.text('BrushLoop'), findsOneWidget);
-    expect(find.text('Sign in to collaborate'), findsOneWidget);
+    expect(find.text('BRUSHLOOP'), findsOneWidget);
+    expect(find.text('Sign in to your studio'), findsOneWidget);
   });
 }

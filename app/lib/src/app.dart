@@ -5,6 +5,7 @@ import 'network/api_client.dart';
 import 'state/app_controller.dart';
 import 'features/auth/auth_screen.dart';
 import 'features/home/home_screen.dart';
+import 'ui/studio_theme.dart';
 
 /// Root widget for the BrushLoop Flutter client.
 class BrushLoopApp extends StatefulWidget {
@@ -36,13 +37,7 @@ class _BrushLoopAppState extends State<BrushLoopApp> {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'BrushLoop',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF0E7490),
-          brightness: Brightness.light,
-        ),
-        useMaterial3: true,
-      ),
+      theme: buildStudioTheme(),
       home: AnimatedBuilder(
         animation: _controller,
         builder: (context, _) {
