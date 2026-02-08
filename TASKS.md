@@ -47,4 +47,4 @@
 - [x] Task 45: Fix dev shutdown deadlocks and listener leaks by making signal handling idempotent and closing active sockets on stop.
 - [x] Task 46: Add adapted GitHub Actions workflows for PR checks, multi-platform tagged releases, and Pages deployment.
 - [x] Task 47: Build a polished static website with screenshot placeholders for GitHub Pages deployment.
-- [T] Task 48: Add Docker + Compose deployment with persistent SQLite/media mounts and domain-based web/api routing.
+- [x] Task 48: Add Docker + Compose deployment with persistent SQLite/media mounts and domain-based web/api routing.
