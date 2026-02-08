@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
@@ -113,6 +114,7 @@ class ApiClient {
     required List<String> participantUserIds,
     required int width,
     required int height,
+    String? basePhotoPath,
   }) async {
     await _requestJson(
       method: 'POST',
@@ -124,9 +126,47 @@ class ApiClient {
         'participantUserIds': participantUserIds,
         'width': width,
         'height': height,
+        'basePhotoPath': basePhotoPath,
         'turnDurationMinutes': mode == ArtworkMode.turnBased ? 1440 : null,
       },
     );
+  }
+
+  /// Uploads a media file to the server and returns stored metadata.
+  Future<UploadedMedia> uploadMedia({
+    required String token,
+    required Uint8List bytes,
+    required String mimeType,
+    required String filename,
+  }) async {
+    final uri = Uri.parse('$baseUrl/api/media/upload');
+    final response = await _httpClient.post(
+      uri,
+      headers: <String, String>{
+        'Authorization': 'Bearer $token',
+        'Content-Type': mimeType,
+        'X-File-Name': filename,
+      },
+      body: bytes,
+    );
+
+    final payloadText = response.body.trim();
+    final payload = payloadText.isEmpty
+        ? <String, dynamic>{}
+        : jsonDecode(payloadText);
+
+    if (response.statusCode >= 400) {
+      throw ApiException(
+        statusCode: response.statusCode,
+        message: payload is Map<String, dynamic>
+            ? (payload['message'] as String? ??
+                payload['error'] as String? ??
+                'Media upload failed')
+            : 'Media upload failed',
+      );
+    }
+
+    return UploadedMedia.fromJson(payload as Map<String, dynamic>);
   }
 
   /// Submits the active turn for turn-based artworks.

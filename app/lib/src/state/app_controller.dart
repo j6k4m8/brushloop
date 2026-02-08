@@ -3,6 +3,25 @@ import 'package:flutter/foundation.dart';
 import '../core/models.dart';
 import '../network/api_client.dart';
 
+/// Local base-photo payload selected before artwork creation.
+class ArtworkBasePhotoInput {
+  /// Creates a base-photo upload payload.
+  const ArtworkBasePhotoInput({
+    required this.bytes,
+    required this.filename,
+    required this.mimeType,
+  });
+
+  /// Raw image bytes.
+  final Uint8List bytes;
+
+  /// Original filename from picker/camera.
+  final String filename;
+
+  /// MIME type for upload.
+  final String mimeType;
+}
+
 /// Mutable app state and use-case orchestration for the BrushLoop client.
 class AppController extends ChangeNotifier {
   /// Creates an app controller.
@@ -86,6 +105,7 @@ class AppController extends ChangeNotifier {
   Future<void> createArtworkWithContact({
     required ContactSummary contact,
     required ArtworkMode mode,
+    ArtworkBasePhotoInput? basePhoto,
   }) async {
     final token = _session?.token;
     if (token == null) {
@@ -95,6 +115,18 @@ class AppController extends ChangeNotifier {
     await _runBusy(() async {
       final timestamp = DateTime.now().toIso8601String();
       final modeLabel = mode == ArtworkMode.realTime ? 'Real-time' : 'Turn-based';
+      String? basePhotoPath;
+
+      if (basePhoto != null) {
+        final uploaded = await _apiClient.uploadMedia(
+          token: token,
+          bytes: basePhoto.bytes,
+          mimeType: basePhoto.mimeType,
+          filename: basePhoto.filename,
+        );
+        basePhotoPath = uploaded.contentPath;
+      }
+
       await _apiClient.createArtwork(
         token: token,
         title: '$modeLabel Sketch $timestamp',
@@ -102,6 +134,7 @@ class AppController extends ChangeNotifier {
         participantUserIds: <String>[contact.userId],
         width: 1400,
         height: 1000,
+        basePhotoPath: basePhotoPath,
       );
       await _loadHomeData();
     });

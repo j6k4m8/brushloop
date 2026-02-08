@@ -139,6 +139,7 @@ class ArtworkMeta {
     required this.mode,
     required this.width,
     required this.height,
+    required this.basePhotoPath,
   });
 
   /// Artwork id.
@@ -156,6 +157,9 @@ class ArtworkMeta {
   /// Canvas height.
   final int height;
 
+  /// Optional server path for the base photo layer.
+  final String? basePhotoPath;
+
   /// Decode from JSON.
   factory ArtworkMeta.fromJson(Map<String, dynamic> json) {
     return ArtworkMeta(
@@ -164,6 +168,7 @@ class ArtworkMeta {
       mode: _decodeMode(json['mode'] as String),
       width: (json['width'] as num).toInt(),
       height: (json['height'] as num).toInt(),
+      basePhotoPath: json['basePhotoPath'] as String?,
     );
   }
 }
@@ -304,6 +309,44 @@ class ArtworkDetails {
       currentTurn: json['currentTurn'] == null
           ? null
           : TurnStatus.fromJson(json['currentTurn'] as Map<String, dynamic>),
+    );
+  }
+}
+
+/// Stored media metadata returned after upload.
+class UploadedMedia {
+  /// Creates an uploaded media payload.
+  const UploadedMedia({
+    required this.id,
+    required this.contentPath,
+    required this.mimeType,
+    required this.originalFilename,
+    required this.byteSize,
+  });
+
+  /// Media id.
+  final String id;
+
+  /// API path that serves content bytes.
+  final String contentPath;
+
+  /// Media mime type.
+  final String mimeType;
+
+  /// Original filename from client.
+  final String originalFilename;
+
+  /// Byte size stored on server.
+  final int byteSize;
+
+  /// Decode from JSON.
+  factory UploadedMedia.fromJson(Map<String, dynamic> json) {
+    return UploadedMedia(
+      id: json['id'] as String,
+      contentPath: json['contentPath'] as String,
+      mimeType: json['mimeType'] as String,
+      originalFilename: json['originalFilename'] as String,
+      byteSize: (json['byteSize'] as num).toInt(),
     );
   }
 }

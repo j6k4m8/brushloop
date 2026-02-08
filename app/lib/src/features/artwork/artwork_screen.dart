@@ -440,19 +440,50 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(12),
-          child: DrawingCanvas(
-            strokes: _strokes,
-            activeStroke: _activeStroke,
-            visibleLayerIds: visibleLayerIds,
-            layerOrder: layerOrder,
-            canEdit: _canEdit,
-            onPanStart: _onPanStart,
-            onPanUpdate: _onPanUpdate,
-            onPanEnd: _onPanEnd,
+          child: Stack(
+            fit: StackFit.expand,
+            children: <Widget>[
+              if (details.artwork.basePhotoPath case final photoPath?)
+                IgnorePointer(
+                  child: Image.network(
+                    _resolveMediaUrl(photoPath),
+                    fit: BoxFit.cover,
+                    headers: <String, String>{
+                      if (widget.controller.session case final session?)
+                        'Authorization': 'Bearer ${session.token}',
+                    },
+                    errorBuilder: (context, error, stackTrace) {
+                      return const SizedBox.shrink();
+                    },
+                  ),
+                ),
+              DrawingCanvas(
+                strokes: _strokes,
+                activeStroke: _activeStroke,
+                visibleLayerIds: visibleLayerIds,
+                layerOrder: layerOrder,
+                canEdit: _canEdit,
+                onPanStart: _onPanStart,
+                onPanUpdate: _onPanUpdate,
+                onPanEnd: _onPanEnd,
+              ),
+            ],
           ),
         ),
       ),
     );
+  }
+
+  String _resolveMediaUrl(String pathOrUrl) {
+    if (pathOrUrl.startsWith('http://') || pathOrUrl.startsWith('https://')) {
+      return pathOrUrl;
+    }
+
+    final base = AppConfig.apiBaseUrl.endsWith('/')
+        ? AppConfig.apiBaseUrl.substring(0, AppConfig.apiBaseUrl.length - 1)
+        : AppConfig.apiBaseUrl;
+    final suffix = pathOrUrl.startsWith('/') ? pathOrUrl : '/$pathOrUrl';
+    return '$base$suffix';
   }
 
   Widget _buildControlsPanel(BuildContext context, ArtworkDetails details) {

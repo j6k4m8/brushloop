@@ -1,4 +1,7 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../core/models.dart';
 import '../../state/app_controller.dart';
@@ -58,86 +61,9 @@ class HomeScreen extends StatelessWidget {
       return;
     }
 
-    ContactSummary selected = controller.contacts.first;
-    ArtworkMode mode = ArtworkMode.realTime;
-
     await showDialog<void>(
       context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              title: const Text('Create Artwork'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  DropdownButtonFormField<ContactSummary>(
-                    initialValue: selected,
-                    decoration: const InputDecoration(labelText: 'Contact'),
-                    items: controller.contacts
-                        .map(
-                          (contact) => DropdownMenuItem<ContactSummary>(
-                            value: contact,
-                            child: Text(contact.displayName),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (value) {
-                      if (value == null) {
-                        return;
-                      }
-                      setDialogState(() {
-                        selected = value;
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<ArtworkMode>(
-                    initialValue: mode,
-                    decoration: const InputDecoration(labelText: 'Mode'),
-                    items: const <DropdownMenuItem<ArtworkMode>>[
-                      DropdownMenuItem(
-                        value: ArtworkMode.realTime,
-                        child: Text('Real-time'),
-                      ),
-                      DropdownMenuItem(
-                        value: ArtworkMode.turnBased,
-                        child: Text('Turn-based'),
-                      ),
-                    ],
-                    onChanged: (value) {
-                      if (value == null) {
-                        return;
-                      }
-                      setDialogState(() {
-                        mode = value;
-                      });
-                    },
-                  ),
-                ],
-              ),
-              actions: <Widget>[
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Cancel'),
-                ),
-                FilledButton(
-                  onPressed: () async {
-                    await controller.createArtworkWithContact(
-                      contact: selected,
-                      mode: mode,
-                    );
-                    if (context.mounted) {
-                      Navigator.of(context).pop();
-                    }
-                  },
-                  child: const Text('Create'),
-                ),
-              ],
-            );
-          },
-        );
-      },
+      builder: (_) => _CreateArtworkDialog(controller: controller),
     );
   }
 
@@ -227,6 +153,273 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
+class _CreateArtworkDialog extends StatefulWidget {
+  const _CreateArtworkDialog({required this.controller});
+
+  final AppController controller;
+
+  @override
+  State<_CreateArtworkDialog> createState() => _CreateArtworkDialogState();
+}
+
+class _CreateArtworkDialogState extends State<_CreateArtworkDialog> {
+  final ImagePicker _picker = ImagePicker();
+
+  late ContactSummary _selectedContact;
+  ArtworkMode _mode = ArtworkMode.realTime;
+  _PickedArtworkPhoto? _photo;
+  bool _isPickingPhoto = false;
+  bool _isSubmitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedContact = widget.controller.contacts.first;
+  }
+
+  Future<void> _pickPhoto(ImageSource source) async {
+    setState(() {
+      _isPickingPhoto = true;
+    });
+
+    try {
+      final picked = await _picker.pickImage(
+        source: source,
+        maxWidth: 3000,
+        imageQuality: 95,
+      );
+
+      if (picked == null) {
+        return;
+      }
+
+      final bytes = await picked.readAsBytes();
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _photo = _PickedArtworkPhoto(
+          bytes: bytes,
+          filename: picked.name.isEmpty ? 'photo.jpg' : picked.name,
+          mimeType: inferImageMimeType(picked.name),
+        );
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Photo selection failed: $error')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isPickingPhoto = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _submit() async {
+    setState(() {
+      _isSubmitting = true;
+    });
+
+    try {
+      final basePhoto = _photo;
+      await widget.controller.createArtworkWithContact(
+        contact: _selectedContact,
+        mode: _mode,
+        basePhoto: basePhoto == null
+            ? null
+            : ArtworkBasePhotoInput(
+                bytes: basePhoto.bytes,
+                filename: basePhoto.filename,
+                mimeType: basePhoto.mimeType,
+              ),
+      );
+
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not create artwork: $error')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Create Artwork'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            DropdownButtonFormField<ContactSummary>(
+              initialValue: _selectedContact,
+              decoration: const InputDecoration(labelText: 'Contact'),
+              items: widget.controller.contacts
+                  .map(
+                    (contact) => DropdownMenuItem<ContactSummary>(
+                      value: contact,
+                      child: Text(contact.displayName),
+                    ),
+                  )
+                  .toList(),
+              onChanged: _isSubmitting
+                  ? null
+                  : (value) {
+                      if (value == null) {
+                        return;
+                      }
+                      setState(() {
+                        _selectedContact = value;
+                      });
+                    },
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<ArtworkMode>(
+              initialValue: _mode,
+              decoration: const InputDecoration(labelText: 'Mode'),
+              items: const <DropdownMenuItem<ArtworkMode>>[
+                DropdownMenuItem(
+                  value: ArtworkMode.realTime,
+                  child: Text('Real-time'),
+                ),
+                DropdownMenuItem(
+                  value: ArtworkMode.turnBased,
+                  child: Text('Turn-based'),
+                ),
+              ],
+              onChanged: _isSubmitting
+                  ? null
+                  : (value) {
+                      if (value == null) {
+                        return;
+                      }
+                      setState(() {
+                        _mode = value;
+                      });
+                    },
+            ),
+            const SizedBox(height: 14),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Base Photo (optional)',
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _isSubmitting || _isPickingPhoto
+                        ? null
+                        : () => _pickPhoto(ImageSource.camera),
+                    icon: const Icon(Icons.photo_camera_outlined),
+                    label: const Text('Camera'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _isSubmitting || _isPickingPhoto
+                        ? null
+                        : () => _pickPhoto(ImageSource.gallery),
+                    icon: const Icon(Icons.photo_library_outlined),
+                    label: const Text('Gallery'),
+                  ),
+                ),
+              ],
+            ),
+            if (_isPickingPhoto)
+              const Padding(
+                padding: EdgeInsets.only(top: 8),
+                child: LinearProgressIndicator(),
+              ),
+            if (_photo != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: Column(
+                  children: <Widget>[
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.memory(
+                        _photo!.bytes,
+                        width: 240,
+                        height: 150,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      _photo!.filename,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    TextButton(
+                      onPressed: _isSubmitting
+                          ? null
+                          : () {
+                              setState(() {
+                                _photo = null;
+                              });
+                            },
+                      child: const Text('Remove Photo'),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+      actions: <Widget>[
+        TextButton(
+          onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: _isSubmitting ? null : _submit,
+          child: _isSubmitting
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('Create'),
+        ),
+      ],
+    );
+  }
+}
+
+class _PickedArtworkPhoto {
+  const _PickedArtworkPhoto({
+    required this.bytes,
+    required this.filename,
+    required this.mimeType,
+  });
+
+  final Uint8List bytes;
+  final String filename;
+  final String mimeType;
+}
+
 class _ContactsPane extends StatelessWidget {
   const _ContactsPane({required this.controller});
 
@@ -312,4 +505,22 @@ class _ArtworksPane extends StatelessWidget {
       ],
     );
   }
+}
+
+String inferImageMimeType(String filename) {
+  final lower = filename.toLowerCase();
+  if (lower.endsWith('.png')) {
+    return 'image/png';
+  }
+  if (lower.endsWith('.webp')) {
+    return 'image/webp';
+  }
+  if (lower.endsWith('.gif')) {
+    return 'image/gif';
+  }
+  if (lower.endsWith('.heic')) {
+    return 'image/heic';
+  }
+
+  return 'image/jpeg';
 }
