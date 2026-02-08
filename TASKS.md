@@ -44,4 +44,4 @@
 - [x] Task 42: Implement collaborative undo/redo sync by broadcasting stroke remove/add operations over websocket.
 - [x] Task 43: Restrict undo/redo to current user's strokes only in collaborative sessions.
 - [x] Task 44: Persist authenticated sessions across app restarts and browser refresh with startup restore.
-- [T] Task 45: Fix dev shutdown deadlocks and listener leaks by making signal handling idempotent and closing active sockets on stop.
+- [x] Task 45: Fix dev shutdown deadlocks and listener leaks by making signal handling idempotent and closing active sockets on stop.
