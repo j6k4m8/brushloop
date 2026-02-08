@@ -107,28 +107,7 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
     socket.connect(token: token);
     socket.joinArtwork(widget.artwork.id);
 
-    _messageSubscription = socket.messages.listen((payload) {
-      if (payload['type'] == 'server.turn_advanced') {
-        final details = _details;
-        if (details == null || payload['artworkId'] != details.artwork.id) {
-          return;
-        }
-
-        setState(() {
-          _details = ArtworkDetails(
-            artwork: details.artwork,
-            participants: details.participants,
-            layers: details.layers,
-            currentTurn: TurnStatus(
-              activeParticipantUserId:
-                  payload['activeParticipantUserId'] as String,
-              turnNumber: (payload['turnNumber'] as num).toInt(),
-              dueAt: payload['dueAt'] as String?,
-            ),
-          );
-        });
-      }
-    });
+    _messageSubscription = socket.messages.listen(_handleSocketMessage);
 
     _socket = socket;
   }
@@ -212,7 +191,7 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
     }
 
     setState(() {
-      _strokes.add(activeStroke);
+      _upsertStroke(activeStroke);
       _activeStroke = null;
       _redoBuffer.clear();
     });
@@ -280,7 +259,8 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
     }
 
     setState(() {
-      _redoBuffer.add(_strokes.removeLast());
+      final removed = _strokes.removeLast();
+      _redoBuffer.add(removed);
     });
   }
 
@@ -290,8 +270,200 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
     }
 
     setState(() {
-      _strokes.add(_redoBuffer.removeLast());
+      _upsertStroke(_redoBuffer.removeLast());
     });
+  }
+
+  void _handleSocketMessage(Map<String, dynamic> payload) {
+    switch (payload['type']) {
+      case 'server.operations':
+        _handleServerOperations(payload);
+        return;
+      case 'server.turn_advanced':
+        _handleTurnAdvanced(payload);
+        return;
+      case 'server.error':
+        _handleServerError(payload);
+        return;
+    }
+  }
+
+  void _handleServerOperations(Map<String, dynamic> payload) {
+    if (payload['artworkId'] != widget.artwork.id) {
+      return;
+    }
+
+    final operations = payload['operations'];
+    if (operations is! List<dynamic>) {
+      return;
+    }
+
+    var changed = false;
+    for (final operation in operations) {
+      if (operation is! Map<String, dynamic>) {
+        continue;
+      }
+
+      final stroke = _strokeFromOperation(operation);
+      if (stroke == null) {
+        continue;
+      }
+
+      changed = _upsertStroke(stroke) || changed;
+    }
+
+    if (changed && mounted) {
+      setState(() {});
+    }
+  }
+
+  void _handleTurnAdvanced(Map<String, dynamic> payload) {
+    final details = _details;
+    if (details == null || payload['artworkId'] != details.artwork.id) {
+      return;
+    }
+
+    final activeParticipantUserId = payload['activeParticipantUserId'];
+    final turnNumber = payload['turnNumber'];
+    if (activeParticipantUserId is! String || turnNumber is! num) {
+      return;
+    }
+
+    setState(() {
+      _details = ArtworkDetails(
+        artwork: details.artwork,
+        participants: details.participants,
+        layers: details.layers,
+        currentTurn: TurnStatus(
+          activeParticipantUserId: activeParticipantUserId,
+          turnNumber: turnNumber.toInt(),
+          dueAt: payload['dueAt'] as String?,
+        ),
+      );
+    });
+  }
+
+  void _handleServerError(Map<String, dynamic> payload) {
+    if (!mounted) {
+      return;
+    }
+
+    final message = payload['message'];
+    if (message is! String || message.isEmpty) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
+  bool _upsertStroke(CanvasStroke stroke) {
+    final existingIndex = _strokes.indexWhere((candidate) => candidate.id == stroke.id);
+    if (existingIndex >= 0) {
+      final existing = _strokes[existingIndex];
+      if (_strokesEqual(existing, stroke)) {
+        return false;
+      }
+      _strokes[existingIndex] = stroke;
+      return true;
+    }
+
+    _strokes.add(stroke);
+    return true;
+  }
+
+  bool _strokesEqual(CanvasStroke a, CanvasStroke b) {
+    if (a.id != b.id ||
+        a.layerId != b.layerId ||
+        a.color != b.color ||
+        a.size != b.size ||
+        a.isEraser != b.isEraser ||
+        a.points.length != b.points.length) {
+      return false;
+    }
+
+    for (var i = 0; i < a.points.length; i++) {
+      final left = a.points[i];
+      final right = b.points[i];
+      if (left.x != right.x || left.y != right.y) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  CanvasStroke? _strokeFromOperation(Map<String, dynamic> operation) {
+    final type = operation['type'];
+    if (type != 'stroke.add' && type != 'stroke.erase') {
+      return null;
+    }
+
+    final layerId = operation['layerId'];
+    final payload = operation['payload'];
+    if (layerId is! String || payload is! Map<String, dynamic>) {
+      return null;
+    }
+
+    final strokeId = payload['strokeId'];
+    final size = payload['size'];
+    final pointsRaw = payload['points'];
+    if (strokeId is! String || size is! num || pointsRaw is! List<dynamic>) {
+      return null;
+    }
+
+    final points = <CanvasStrokePoint>[];
+    for (final rawPoint in pointsRaw) {
+      if (rawPoint is! Map<String, dynamic>) {
+        continue;
+      }
+      final x = rawPoint['x'];
+      final y = rawPoint['y'];
+      if (x is! num || y is! num) {
+        continue;
+      }
+
+      points.add(CanvasStrokePoint(x: x.toDouble(), y: y.toDouble()));
+    }
+
+    if (points.isEmpty) {
+      return null;
+    }
+
+    final operationTool = payload['tool'];
+    final isEraser = type == 'stroke.erase' || operationTool == 'eraser';
+
+    return CanvasStroke(
+      id: strokeId,
+      layerId: layerId,
+      color: isEraser
+          ? const Color(0x00000000)
+          : _parseColor(payload['color'] as String?),
+      size: size.toDouble(),
+      points: points,
+      isEraser: isEraser,
+    );
+  }
+
+  Color _parseColor(String? rawColor) {
+    if (rawColor == null) {
+      return const Color(0xFF111827);
+    }
+
+    var value = rawColor.trim();
+    if (value.startsWith('#')) {
+      value = value.substring(1);
+    }
+    if (value.length == 6) {
+      value = 'ff$value';
+    }
+
+    final parsed = int.tryParse(value, radix: 16);
+    if (parsed == null) {
+      return const Color(0xFF111827);
+    }
+
+    return Color(parsed);
   }
 
   void _toggleLayerVisibility(ArtworkLayer layer) {
