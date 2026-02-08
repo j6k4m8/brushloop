@@ -142,13 +142,17 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
     return details.currentTurn?.activeParticipantUserId == session.user.id;
   }
 
-  void _onPanStart(DragStartDetails details) {
-    if (_pinchSizingActive) {
-      return;
-    }
+  void _onScaleStart(ScaleStartDetails details) {
+    _pinchInitialBrushSize = _brushSize;
+    _pinchSizingActive = false;
 
     if (_tool == _EditorTool.eyedropper) {
-      unawaited(_sampleColorAt(details.localPosition));
+      unawaited(_sampleColorAt(details.localFocalPoint));
+    }
+  }
+
+  void _onScaleUpdate(ScaleUpdateDetails details) {
+    if (_tool != _EditorTool.brush && _tool != _EditorTool.eraser) {
       return;
     }
 
@@ -162,34 +166,61 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
       return;
     }
 
-    final stroke = CanvasStroke(
-      id: _newStrokeId(),
-      layerId: layerId,
-      color: _tool == _EditorTool.eraser
-          ? const Color(0x00000000)
-          : _brushColor,
-      size: _brushSize,
-      points: <CanvasStrokePoint>[
-        CanvasStrokePoint(
-          x: details.localPosition.dx,
-          y: details.localPosition.dy,
-        ),
-      ],
-      isEraser: _tool == _EditorTool.eraser,
-    );
+    if (details.pointerCount >= 2) {
+      final strokeToCommit = !_pinchSizingActive ? _activeStroke : null;
+      setState(() {
+        if (!_pinchSizingActive) {
+          _pinchSizingActive = true;
+          _pinchInitialBrushSize = _brushSize;
+          if (strokeToCommit != null) {
+            _upsertStroke(strokeToCommit);
+            _redoBuffer.clear();
+          }
+        }
+        _activeStroke = null;
+      });
 
-    setState(() {
-      _activeStroke = stroke;
-    });
-  }
+      if (strokeToCommit != null) {
+        _sendStrokeOperation(strokeToCommit);
+      }
 
-  void _onPanUpdate(DragUpdateDetails details) {
+      final updatedSize =
+          (_pinchInitialBrushSize * details.scale).clamp(2.0, 36.0);
+      if ((updatedSize - _brushSize).abs() < 0.01) {
+        return;
+      }
+
+      setState(() {
+        _brushSize = updatedSize;
+      });
+      return;
+    }
+
     if (_pinchSizingActive) {
       return;
     }
 
     final activeStroke = _activeStroke;
     if (activeStroke == null) {
+      final stroke = CanvasStroke(
+        id: _newStrokeId(),
+        layerId: layerId,
+        color: _tool == _EditorTool.eraser
+            ? const Color(0x00000000)
+            : _brushColor,
+        size: _brushSize,
+        points: <CanvasStrokePoint>[
+          CanvasStrokePoint(
+            x: details.localFocalPoint.dx,
+            y: details.localFocalPoint.dy,
+          ),
+        ],
+        isEraser: _tool == _EditorTool.eraser,
+      );
+
+      setState(() {
+        _activeStroke = stroke;
+      });
       return;
     }
 
@@ -201,8 +232,8 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
       points: <CanvasStrokePoint>[
         ...activeStroke.points,
         CanvasStrokePoint(
-          x: details.localPosition.dx,
-          y: details.localPosition.dy,
+          x: details.localFocalPoint.dx,
+          y: details.localFocalPoint.dy,
         ),
       ],
       isEraser: activeStroke.isEraser,
@@ -213,58 +244,20 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
     });
   }
 
-  void _onPanEnd(DragEndDetails _) {
-    if (_pinchSizingActive) {
-      return;
-    }
-
-    final activeStroke = _activeStroke;
-    if (activeStroke == null) {
-      return;
-    }
-
-    setState(() {
-      _upsertStroke(activeStroke);
-      _activeStroke = null;
-      _redoBuffer.clear();
-    });
-
-    _sendStrokeOperation(activeStroke);
-  }
-
-  void _onScaleStart(ScaleStartDetails details) {
-    _pinchInitialBrushSize = _brushSize;
-    _pinchSizingActive = false;
-  }
-
-  void _onScaleUpdate(ScaleUpdateDetails details) {
-    if (_tool != _EditorTool.brush && _tool != _EditorTool.eraser) {
-      return;
-    }
-
-    if (details.pointerCount < 2) {
-      return;
-    }
-
+  void _onScaleEnd(ScaleEndDetails _) {
     if (!_pinchSizingActive) {
+      final activeStroke = _activeStroke;
+      if (activeStroke == null) {
+        return;
+      }
+
       setState(() {
-        _pinchSizingActive = true;
+        _upsertStroke(activeStroke);
         _activeStroke = null;
+        _redoBuffer.clear();
       });
-    }
 
-    final updatedSize = (_pinchInitialBrushSize * details.scale).clamp(2.0, 36.0);
-    if ((updatedSize - _brushSize).abs() < 0.01) {
-      return;
-    }
-
-    setState(() {
-      _brushSize = updatedSize;
-    });
-  }
-
-  void _onScaleEnd(ScaleEndDetails details) {
-    if (!_pinchSizingActive) {
+      _sendStrokeOperation(activeStroke);
       return;
     }
 
@@ -1169,9 +1162,6 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
                             layerOrder: layerOrder,
                             canEdit: _tool == _EditorTool.eyedropper ||
                                 (_canEdit && _tool != _EditorTool.pan),
-                            onPanStart: _onPanStart,
-                            onPanUpdate: _onPanUpdate,
-                            onPanEnd: _onPanEnd,
                             onScaleStart: _onScaleStart,
                             onScaleUpdate: _onScaleUpdate,
                             onScaleEnd: _onScaleEnd,

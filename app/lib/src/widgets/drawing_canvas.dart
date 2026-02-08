@@ -59,9 +59,6 @@ class DrawingCanvas extends StatelessWidget {
     required this.visibleLayerIds,
     required this.layerOrder,
     required this.canEdit,
-    required this.onPanStart,
-    required this.onPanUpdate,
-    required this.onPanEnd,
     required this.onScaleStart,
     required this.onScaleUpdate,
     required this.onScaleEnd,
@@ -82,15 +79,6 @@ class DrawingCanvas extends StatelessWidget {
   /// True when editing interactions are allowed.
   final bool canEdit;
 
-  /// Start gesture callback.
-  final GestureDragStartCallback onPanStart;
-
-  /// Update gesture callback.
-  final GestureDragUpdateCallback onPanUpdate;
-
-  /// End gesture callback.
-  final GestureDragEndCallback onPanEnd;
-
   /// Scale gesture start callback.
   final GestureScaleStartCallback onScaleStart;
 
@@ -106,9 +94,6 @@ class DrawingCanvas extends StatelessWidget {
       ..sort((a, b) => (layerOrder[a] ?? 0).compareTo(layerOrder[b] ?? 0));
 
     return GestureDetector(
-      onPanStart: canEdit ? onPanStart : null,
-      onPanUpdate: canEdit ? onPanUpdate : null,
-      onPanEnd: canEdit ? onPanEnd : null,
       onScaleStart: canEdit ? onScaleStart : null,
       onScaleUpdate: canEdit ? onScaleUpdate : null,
       onScaleEnd: canEdit ? onScaleEnd : null,
