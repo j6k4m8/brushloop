@@ -76,3 +76,20 @@ test("database allows creating a solo artwork", () => {
 
   db.close();
 });
+
+test("declining an invitation marks it declined and does not create contacts", () => {
+  const dbPath = makeTmpPath("decline-invite");
+  const db = new BrushloopDatabase(dbPath);
+
+  const inviter = db.createUser("inviter@example.com", "Inviter", hashPassword("password123"));
+  const invitee = db.createUser("invitee@example.com", "Invitee", hashPassword("password123"));
+
+  const invitation = db.createContactInvitation(inviter.id, invitee.email);
+  const declined = db.declineInvitation(invitation.id, invitee.id);
+
+  assert.equal(declined.status, "declined");
+  assert.equal(declined.inviteeUserId, invitee.id);
+  assert.equal(db.isContactPair(inviter.id, invitee.id), false);
+
+  db.close();
+});

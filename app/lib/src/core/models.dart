@@ -82,6 +82,44 @@ class ContactSummary {
   }
 }
 
+/// Pending invitation entry awaiting user action.
+class PendingInvitation {
+  /// Creates a pending invitation model.
+  const PendingInvitation({
+    required this.id,
+    required this.inviterUserId,
+    required this.inviterDisplayName,
+    required this.inviterEmail,
+    required this.createdAt,
+  });
+
+  /// Invitation id.
+  final String id;
+
+  /// Inviter user id.
+  final String inviterUserId;
+
+  /// Inviter display name.
+  final String inviterDisplayName;
+
+  /// Inviter email address, if available.
+  final String? inviterEmail;
+
+  /// Creation timestamp.
+  final String createdAt;
+
+  /// Decode from JSON.
+  factory PendingInvitation.fromJson(Map<String, dynamic> json) {
+    return PendingInvitation(
+      id: json['id'] as String,
+      inviterUserId: json['inviterUserId'] as String,
+      inviterDisplayName: (json['inviterDisplayName'] as String?) ?? 'Unknown',
+      inviterEmail: json['inviterEmail'] as String?,
+      createdAt: json['createdAt'] as String,
+    );
+  }
+}
+
 /// Collaboration mode for an artwork.
 enum ArtworkMode {
   /// Simultaneous editing.

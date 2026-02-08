@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../core/models.dart';
 import '../../state/app_controller.dart';
 import '../artwork/artwork_screen.dart';
+import 'pending_invites_screen.dart';
 
 /// Home screen listing contacts and active artworks.
 class HomeScreen extends StatelessWidget {
@@ -69,6 +70,14 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
+  Future<void> _openPendingInvites(BuildContext context) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => PendingInvitesScreen(controller: controller),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
@@ -113,7 +122,10 @@ class HomeScreen extends StatelessWidget {
               : LayoutBuilder(
                   builder: (context, constraints) {
                     final twoPane = constraints.maxWidth > 900;
-                    final contactsPane = _ContactsPane(controller: controller);
+                    final contactsPane = _ContactsPane(
+                      controller: controller,
+                      onOpenPendingInvites: () => _openPendingInvites(context),
+                    );
                     final artworksPane = _ArtworksPane(
                       controller: controller,
                       onTapArtwork: (item) => _openArtwork(context, item),
@@ -434,9 +446,13 @@ class _PickedArtworkPhoto {
 }
 
 class _ContactsPane extends StatelessWidget {
-  const _ContactsPane({required this.controller});
+  const _ContactsPane({
+    required this.controller,
+    required this.onOpenPendingInvites,
+  });
 
   final AppController controller;
+  final VoidCallback onOpenPendingInvites;
 
   @override
   Widget build(BuildContext context) {
@@ -444,8 +460,24 @@ class _ContactsPane extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
         Padding(
-          padding: const EdgeInsets.all(16),
-          child: Text('Contacts', style: Theme.of(context).textTheme.titleLarge),
+          padding: const EdgeInsets.fromLTRB(16, 16, 8, 8),
+          child: Row(
+            children: <Widget>[
+              Expanded(
+                child: Text(
+                  'Contacts',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+              ),
+              TextButton.icon(
+                onPressed: onOpenPendingInvites,
+                icon: const Icon(Icons.mark_email_unread_outlined),
+                label: Text(
+                  'Pending Invites (${controller.pendingInvitations.length})',
+                ),
+              ),
+            ],
+          ),
         ),
         Expanded(
           child: controller.contacts.isEmpty

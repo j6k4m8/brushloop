@@ -331,6 +331,65 @@ export class BrushloopDatabase {
     };
   }
 
+  declineInvitation(invitationId: Id, declinerUserId: Id): ContactInvitation {
+    const invitation = this.db
+      .prepare(
+        `SELECT id, inviter_user_id, invitee_email, invitee_user_id, status, created_at
+         FROM contact_invitations
+         WHERE id = ?`
+      )
+      .get(invitationId) as
+      | {
+          id: string;
+          inviter_user_id: string;
+          invitee_email: string;
+          invitee_user_id: string | null;
+          status: string;
+          created_at: string;
+        }
+      | undefined;
+
+    if (!invitation) {
+      throw new Error("invitation not found");
+    }
+
+    if (invitation.status !== "pending") {
+      throw new Error("invitation is not pending");
+    }
+
+    const decliner = this.getUserById(declinerUserId);
+    if (!decliner) {
+      throw new Error("decliner user not found");
+    }
+
+    if (invitation.invitee_user_id && invitation.invitee_user_id !== declinerUserId) {
+      throw new Error("invitation is not assigned to this user");
+    }
+
+    if (!invitation.invitee_user_id && invitation.invitee_email !== decliner.email) {
+      throw new Error("invitation email does not match decliner");
+    }
+
+    const respondedAt = nowIso();
+    this.db
+      .prepare(
+        `UPDATE contact_invitations
+         SET status = 'declined', invitee_user_id = ?, responded_at = ?
+         WHERE id = ?`
+      )
+      .run(declinerUserId, respondedAt, invitationId);
+
+    return {
+      id: invitation.id,
+      inviterUserId: invitation.inviter_user_id,
+      inviteeEmail: invitation.invitee_email,
+      inviteeUserId: declinerUserId,
+      status: "declined",
+      createdAt: invitation.created_at,
+      respondedAt
+    };
+  }
+
   listContacts(userId: Id): Array<{ userId: Id; displayName: string; email: string }> {
     const rows = this.db
       .prepare(

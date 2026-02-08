@@ -150,7 +150,17 @@ export function createAppServer(): AppServer {
       return;
     }
 
-    writeJson(res, 200, db.listPendingInvitationsForUser(auth.user.id, auth.user.email));
+    const invitations = db.listPendingInvitationsForUser(auth.user.id, auth.user.email);
+    const payload = invitations.map((invitation) => {
+      const inviter = db.getUserById(invitation.inviterUserId);
+      return {
+        ...invitation,
+        inviterDisplayName: inviter?.displayName ?? "Unknown",
+        inviterEmail: inviter?.email ?? null
+      };
+    });
+
+    writeJson(res, 200, payload);
   });
 
   router.register("POST", "/api/contacts/invitations/:invitationId/accept", ({ req, res, params }) => {
@@ -171,6 +181,29 @@ export function createAppServer(): AppServer {
     } catch (error) {
       writeJson(res, 400, {
         error: "failed_to_accept_invite",
+        message: error instanceof Error ? error.message : "unknown error"
+      });
+    }
+  });
+
+  router.register("POST", "/api/contacts/invitations/:invitationId/decline", ({ req, res, params }) => {
+    const auth = requireAuth(req, res, db);
+    if (!auth) {
+      return;
+    }
+
+    const invitationId = params.invitationId;
+    if (!invitationId) {
+      writeJson(res, 400, { error: "invitation_id_required" });
+      return;
+    }
+
+    try {
+      const invitation = db.declineInvitation(invitationId, auth.user.id);
+      writeJson(res, 200, invitation);
+    } catch (error) {
+      writeJson(res, 400, {
+        error: "failed_to_decline_invite",
         message: error instanceof Error ? error.message : "unknown error"
       });
     }

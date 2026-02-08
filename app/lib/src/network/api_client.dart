@@ -79,6 +79,48 @@ class ApiClient {
     );
   }
 
+  /// Lists pending contact invitations for current user.
+  Future<List<PendingInvitation>> fetchPendingInvitations({
+    required String token,
+  }) async {
+    final jsonPayload = await _requestJson(
+      method: 'GET',
+      path: '/api/contacts/invitations',
+      token: token,
+    );
+
+    return (jsonPayload as List<dynamic>)
+        .map(
+          (value) =>
+              PendingInvitation.fromJson(value as Map<String, dynamic>),
+        )
+        .toList();
+  }
+
+  /// Accepts a pending invitation.
+  Future<void> acceptInvitation({
+    required String token,
+    required String invitationId,
+  }) async {
+    await _requestJson(
+      method: 'POST',
+      path: '/api/contacts/invitations/$invitationId/accept',
+      token: token,
+    );
+  }
+
+  /// Declines a pending invitation.
+  Future<void> declineInvitation({
+    required String token,
+    required String invitationId,
+  }) async {
+    await _requestJson(
+      method: 'POST',
+      path: '/api/contacts/invitations/$invitationId/decline',
+      token: token,
+    );
+  }
+
   /// Lists artworks visible to the current user.
   Future<List<ArtworkSummary>> fetchArtworks({required String token}) async {
     final jsonPayload = await _requestJson(

@@ -33,6 +33,7 @@ class AppController extends ChangeNotifier {
   bool _isBusy = false;
   String? _errorMessage;
   List<ContactSummary> _contacts = const <ContactSummary>[];
+  List<PendingInvitation> _pendingInvitations = const <PendingInvitation>[];
   List<ArtworkSummary> _artworks = const <ArtworkSummary>[];
 
   /// Currently active session, or null when signed out.
@@ -46,6 +47,9 @@ class AppController extends ChangeNotifier {
 
   /// Loaded contact list.
   List<ContactSummary> get contacts => _contacts;
+
+  /// Loaded pending invitation list.
+  List<PendingInvitation> get pendingInvitations => _pendingInvitations;
 
   /// Loaded artwork summaries.
   List<ArtworkSummary> get artworks => _artworks;
@@ -78,6 +82,7 @@ class AppController extends ChangeNotifier {
   void logout() {
     _session = null;
     _contacts = const <ContactSummary>[];
+    _pendingInvitations = const <PendingInvitation>[];
     _artworks = const <ArtworkSummary>[];
     _errorMessage = null;
     notifyListeners();
@@ -97,6 +102,38 @@ class AppController extends ChangeNotifier {
 
     await _runBusy(() async {
       await _apiClient.inviteContact(token: token, email: email);
+      await _loadHomeData();
+    });
+  }
+
+  /// Accepts a pending invitation and refreshes home data.
+  Future<void> acceptInvitation(String invitationId) async {
+    final token = _session?.token;
+    if (token == null) {
+      return;
+    }
+
+    await _runBusy(() async {
+      await _apiClient.acceptInvitation(
+        token: token,
+        invitationId: invitationId,
+      );
+      await _loadHomeData();
+    });
+  }
+
+  /// Declines a pending invitation and refreshes home data.
+  Future<void> declineInvitation(String invitationId) async {
+    final token = _session?.token;
+    if (token == null) {
+      return;
+    }
+
+    await _runBusy(() async {
+      await _apiClient.declineInvitation(
+        token: token,
+        invitationId: invitationId,
+      );
       await _loadHomeData();
     });
   }
@@ -171,14 +208,19 @@ class AppController extends ChangeNotifier {
     final token = _session?.token;
     if (token == null) {
       _contacts = const <ContactSummary>[];
+      _pendingInvitations = const <PendingInvitation>[];
       _artworks = const <ArtworkSummary>[];
       return;
     }
 
     final contacts = await _apiClient.fetchContacts(token: token);
+    final pendingInvitations = await _apiClient.fetchPendingInvitations(
+      token: token,
+    );
     final artworks = await _apiClient.fetchArtworks(token: token);
 
     _contacts = contacts;
+    _pendingInvitations = pendingInvitations;
     _artworks = artworks;
     _errorMessage = null;
     notifyListeners();
