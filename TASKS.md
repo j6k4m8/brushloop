@@ -25,4 +25,4 @@
 - [x] Task 23: Optimize editor screen real estate with workspace-first layout and mobile floating panes.
 - [x] Task 24: Replace editor tools with top control strip and full color picker dialog.
 - [x] Task 25: Add visual package-based color picker and eyedropper tool to editor.
-- [T] Task 26: Add pan/zoom navigation tool and fit-to-viewport canvas behavior.
+- [x] Task 26: Add pan/zoom navigation tool and fit-to-viewport canvas behavior.
