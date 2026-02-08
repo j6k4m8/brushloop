@@ -23,4 +23,4 @@
 - [x] Task 21: Apply websocket operation sync so drawings persist and propagate across users.
 - [x] Task 22: Redesign the Flutter app UI into a Photoshop-style studio interface across all screens.
 - [x] Task 23: Optimize editor screen real estate with workspace-first layout and mobile floating panes.
-- [T] Task 24: Replace editor tools with top control strip and full color picker dialog.
+- [x] Task 24: Replace editor tools with top control strip and full color picker dialog.
