@@ -50,3 +50,4 @@
 - [x] Task 48: Add Docker + Compose deployment with persistent SQLite/media mounts and domain-based web/api routing.
 - [x] Task 49: Serve Flutter web build at web domain and centralize domains into a single deployment config file.
 - [x] Task 50: Add Dockerized Flutter web build step to deployment so host nodes do not need Flutter installed.
+- [T] Task 51: Build and publish deployable API/edge images to GHCR and switch deployment to pull prebuilt containers.

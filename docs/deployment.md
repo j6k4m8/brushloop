@@ -25,14 +25,16 @@ npm run start -w @brushloop/server
 This repo includes:
 
 - `server/Dockerfile` for the Node.js API service.
+- `deploy/edge.Dockerfile` for Caddy + Flutter web bundle.
 - `docker-compose.yml` with:
-  - `web-build` service (Dockerized Flutter web build).
   - `api` service (BrushLoop backend).
   - `edge` service (Caddy TLS + routing).
 - `deploy/domains.env` as the single source of truth for:
   - `WEB_DOMAIN`
   - `API_DOMAIN`
-- `deploy/up.sh` helper to build web + start runtime services.
+  - `GHCR_NAMESPACE`
+  - `BRUSHLOOP_IMAGE_TAG`
+- `deploy/up.sh` helper to pull images + start runtime services.
 
 Persistent state is mounted at `./deploy/data`:
 
@@ -56,7 +58,7 @@ docker compose down
 
 Compose/Caddy routes:
 
-- `WEB_DOMAIN` -> Flutter web build from `deploy/web`
+- `WEB_DOMAIN` -> Flutter web app from `edge` image
 - `API_DOMAIN` -> BrushLoop API (`/ws` included)
 
 DNS requirements:
@@ -84,7 +86,8 @@ Platform examples:
 - Back up both `brushloop.sqlite` and media files referenced by DB paths.
 - Place backend behind a reverse proxy if exposing beyond localhost.
 - If using HTTPS, proxy `/ws` with websocket upgrade support.
-- `deploy/up.sh` runs `web-build` in Docker before bringing up `api` and `edge`.
+- `deploy/up.sh` pulls `api` and `edge` images from GHCR before startup.
+- For private GHCR images, run `docker login ghcr.io` on the deploy host first.
 
 ## Verification Checklist
 

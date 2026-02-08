@@ -18,7 +18,6 @@ coverage/
 *.sqlite3
 data/
 deploy/data/
-deploy/web/
 
 # Flutter/Dart
 .dart_tool/

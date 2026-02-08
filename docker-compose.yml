@@ -1,28 +1,6 @@
 services:
-  web-build:
-    image: ghcr.io/cirruslabs/flutter:stable
-    container_name: brushloop-web-build
-    working_dir: /workspace/app
-    env_file:
-      - ./deploy/domains.env
-    environment:
-      PUB_CACHE: /flutter-pub-cache
-    volumes:
-      - ./:/workspace
-      - ./deploy/web:/web-out
-      - flutter_pub_cache:/flutter-pub-cache
-    command: >
-      sh -lc "
-      flutter pub get &&
-      flutter build web --release --dart-define=BRUSHLOOP_API_BASE_URL=https://$$API_DOMAIN &&
-      rm -rf /web-out/* &&
-      cp -R build/web/. /web-out/
-      "
-
   api:
-    build:
-      context: .
-      dockerfile: server/Dockerfile
+    image: ${API_IMAGE}
     container_name: brushloop-api
     restart: unless-stopped
     environment:
@@ -39,7 +17,7 @@ services:
       - "8787"
 
   edge:
-    image: caddy:2.8-alpine
+    image: ${EDGE_IMAGE}
     container_name: brushloop-edge
     restart: unless-stopped
     depends_on:
@@ -50,12 +28,9 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
-      - ./deploy/web:/srv/flutter-web:ro
       - caddy_data:/data
       - caddy_config:/config
 
 volumes:
   caddy_data:
   caddy_config:
-  flutter_pub_cache:
