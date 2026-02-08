@@ -42,7 +42,6 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
   _EditorTool _tool = _EditorTool.brush;
   double _brushSize = 8;
   Color _brushColor = const Color(0xFF111827);
-  bool _showMobileToolPane = false;
   bool _showMobileInspectorPane = false;
 
   CollaborationSocket? _socket;
@@ -623,18 +622,15 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
                                 children: <Widget>[
                                   _buildTopToolbar(
                                     details,
-                                    showPaneToggles: !wideLayout,
+                                    showInspectorToggle: !wideLayout,
                                   ),
-                                  const SizedBox(height: 8),
+                                  const SizedBox(height: 6),
+                                  _buildQuickToolRow(),
+                                  const SizedBox(height: 6),
                                   Expanded(
                                     child: wideLayout
                                         ? Row(
                                             children: <Widget>[
-                                              SizedBox(
-                                                width: 50,
-                                                child: _buildToolRail(),
-                                              ),
-                                              const SizedBox(width: 8),
                                               Expanded(child: _buildCanvas(details)),
                                               const SizedBox(width: 8),
                                               SizedBox(
@@ -657,7 +653,7 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
 
   Widget _buildTopToolbar(
     ArtworkDetails details, {
-    required bool showPaneToggles,
+    required bool showInspectorToggle,
   }) {
     final turn = details.currentTurn;
     return StudioPanel(
@@ -710,21 +706,7 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
               icon: Icons.check,
               onPressed: _canEdit ? _submitTurn : null,
             ),
-          if (showPaneToggles) ...<Widget>[
-            const SizedBox(width: 6),
-            StudioIconButton(
-              icon: Icons.tune,
-              tooltip: 'Tools',
-              active: _showMobileToolPane,
-              onPressed: () {
-                setState(() {
-                  _showMobileToolPane = !_showMobileToolPane;
-                  if (_showMobileToolPane) {
-                    _showMobileInspectorPane = false;
-                  }
-                });
-              },
-            ),
+          if (showInspectorToggle) ...<Widget>[
             const SizedBox(width: 6),
             StudioIconButton(
               icon: Icons.layers_outlined,
@@ -733,9 +715,6 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
               onPressed: () {
                 setState(() {
                   _showMobileInspectorPane = !_showMobileInspectorPane;
-                  if (_showMobileInspectorPane) {
-                    _showMobileToolPane = false;
-                  }
                 });
               },
             ),
@@ -745,44 +724,72 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
     );
   }
 
-  Widget _buildToolRail() {
+  Widget _buildQuickToolRow() {
     return StudioPanel(
-      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
       color: StudioPalette.chrome,
-      child: Column(
-        children: <Widget>[
-          StudioIconButton(
-            icon: Icons.brush_outlined,
-            tooltip: 'Brush',
-            active: _tool == _EditorTool.brush,
-            onPressed: () => setState(() => _tool = _EditorTool.brush),
-          ),
-          const SizedBox(height: 6),
-          StudioIconButton(
-            icon: Icons.auto_fix_high,
-            tooltip: 'Eraser',
-            active: _tool == _EditorTool.eraser,
-            onPressed: () => setState(() => _tool = _EditorTool.eraser),
-          ),
-          const Divider(height: 14),
-          StudioIconButton(
-            icon: Icons.undo,
-            tooltip: 'Undo',
-            onPressed: _undo,
-          ),
-          const SizedBox(height: 6),
-          StudioIconButton(
-            icon: Icons.redo,
-            tooltip: 'Redo',
-            onPressed: _redo,
-          ),
-          const Spacer(),
-          Icon(
-            _canEdit ? Icons.lock_open_outlined : Icons.lock_outline,
-            size: 16,
-            color: _canEdit ? StudioPalette.success : StudioPalette.textMuted,
-          ),
-        ],
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: <Widget>[
+            Tooltip(
+              message: 'Color Picker',
+              child: InkWell(
+                onTap: _openColorPicker,
+                borderRadius: BorderRadius.circular(999),
+                child: Container(
+                  width: 28,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: _brushColor,
+                    border: Border.all(color: StudioPalette.textStrong, width: 2),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            StudioIconButton(
+              icon: Icons.brush_outlined,
+              tooltip: 'Brush',
+              active: _tool == _EditorTool.brush,
+              onPressed: () => setState(() => _tool = _EditorTool.brush),
+            ),
+            const SizedBox(width: 6),
+            StudioIconButton(
+              icon: Icons.auto_fix_high,
+              tooltip: 'Eraser',
+              active: _tool == _EditorTool.eraser,
+              onPressed: () => setState(() => _tool = _EditorTool.eraser),
+            ),
+            const SizedBox(width: 10),
+            SizedBox(
+              width: 180,
+              child: Slider(
+                value: _brushSize,
+                min: 2,
+                max: 36,
+                onChanged: (value) {
+                  setState(() {
+                    _brushSize = value;
+                  });
+                },
+              ),
+            ),
+            const SizedBox(width: 6),
+            StudioIconButton(
+              icon: Icons.undo,
+              tooltip: 'Undo',
+              onPressed: _undo,
+            ),
+            const SizedBox(width: 6),
+            StudioIconButton(
+              icon: Icons.redo,
+              tooltip: 'Redo',
+              onPressed: _redo,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -795,26 +802,6 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
         return Stack(
           children: <Widget>[
             Positioned.fill(child: _buildCanvas(details)),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: IgnorePointer(
-                ignoring: !_showMobileToolPane,
-                child: AnimatedSlide(
-                  offset: _showMobileToolPane
-                      ? Offset.zero
-                      : const Offset(-1.1, 0),
-                  duration: const Duration(milliseconds: 220),
-                  curve: Curves.easeOutCubic,
-                  child: Padding(
-                    padding: const EdgeInsets.all(8),
-                    child: SizedBox(
-                      width: paneWidth,
-                      child: _buildToolOverlayPane(),
-                    ),
-                  ),
-                ),
-              ),
-            ),
             Align(
               alignment: Alignment.centerRight,
               child: IgnorePointer(
@@ -836,22 +823,6 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
               ),
             ),
             Positioned(
-              left: 12,
-              bottom: 12,
-              child: _buildMobileFab(
-                icon: Icons.tune,
-                active: _showMobileToolPane,
-                onTap: () {
-                  setState(() {
-                    _showMobileToolPane = !_showMobileToolPane;
-                    if (_showMobileToolPane) {
-                      _showMobileInspectorPane = false;
-                    }
-                  });
-                },
-              ),
-            ),
-            Positioned(
               right: 12,
               bottom: 12,
               child: _buildMobileFab(
@@ -860,9 +831,6 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
                 onTap: () {
                   setState(() {
                     _showMobileInspectorPane = !_showMobileInspectorPane;
-                    if (_showMobileInspectorPane) {
-                      _showMobileToolPane = false;
-                    }
                   });
                 },
               ),
@@ -894,103 +862,114 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
     );
   }
 
-  Widget _buildToolOverlayPane() {
-    final palette = <Color>[
-      const Color(0xFF111827),
-      const Color(0xFF0E7490),
-      const Color(0xFFCA8A04),
-      const Color(0xFF16A34A),
-      const Color(0xFFDB2777),
-      const Color(0xFFEA580C),
-    ];
+  Future<void> _openColorPicker() async {
+    var workingColor = HSVColor.fromColor(_brushColor);
+    var applied = false;
 
-    return StudioPanel(
-      color: StudioPalette.chrome,
-      child: ListView(
-        children: <Widget>[
-          const StudioSectionLabel('Tools'),
-          const SizedBox(height: 8),
-          Row(
-            children: <Widget>[
-              StudioIconButton(
-                icon: Icons.brush_outlined,
-                tooltip: 'Brush',
-                active: _tool == _EditorTool.brush,
-                onPressed: () => setState(() => _tool = _EditorTool.brush),
-              ),
-              const SizedBox(width: 6),
-              StudioIconButton(
-                icon: Icons.auto_fix_high,
-                tooltip: 'Eraser',
-                active: _tool == _EditorTool.eraser,
-                onPressed: () => setState(() => _tool = _EditorTool.eraser),
-              ),
-              const SizedBox(width: 6),
-              StudioIconButton(
-                icon: Icons.undo,
-                tooltip: 'Undo',
-                onPressed: _undo,
-              ),
-              const SizedBox(width: 6),
-              StudioIconButton(
-                icon: Icons.redo,
-                tooltip: 'Redo',
-                onPressed: _redo,
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            '${_tool == _EditorTool.eraser ? 'Eraser' : 'Brush'} Size ${_brushSize.toStringAsFixed(0)}',
-            style: const TextStyle(fontSize: 12, color: StudioPalette.textMuted),
-          ),
-          Slider(
-            value: _brushSize,
-            min: 2,
-            max: 36,
-            onChanged: (value) {
-              setState(() {
-                _brushSize = value;
-              });
-            },
-          ),
-          const SizedBox(height: 8),
-          const StudioSectionLabel('Color'),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: palette
-                .map(
-                  (color) => GestureDetector(
-                    onTap: _tool == _EditorTool.eraser
-                        ? null
-                        : () {
-                            setState(() {
-                              _brushColor = color;
-                            });
-                          },
-                    child: Container(
-                      width: 24,
-                      height: 24,
-                      decoration: BoxDecoration(
-                        color: color,
-                        borderRadius: BorderRadius.circular(4),
-                        border: Border.all(
-                          color: _brushColor == color
-                              ? StudioPalette.textStrong
-                              : StudioPalette.border,
-                          width: _brushColor == color ? 2 : 1,
+    await showDialog<void>(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final preview = workingColor.toColor();
+            return Dialog(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 420),
+                child: StudioPanel(
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      const Text(
+                        'Color Picker',
+                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 10),
+                      Container(
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: preview,
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(color: StudioPalette.border),
                         ),
                       ),
-                    ),
+                      const SizedBox(height: 10),
+                      Text(
+                        'Hue ${workingColor.hue.round()}',
+                        style: const TextStyle(fontSize: 12, color: StudioPalette.textMuted),
+                      ),
+                      Slider(
+                        value: workingColor.hue,
+                        min: 0,
+                        max: 360,
+                        onChanged: (value) {
+                          setDialogState(() {
+                            workingColor = workingColor.withHue(value);
+                          });
+                        },
+                      ),
+                      Text(
+                        'Saturation ${(workingColor.saturation * 100).round()}%',
+                        style: const TextStyle(fontSize: 12, color: StudioPalette.textMuted),
+                      ),
+                      Slider(
+                        value: workingColor.saturation,
+                        min: 0,
+                        max: 1,
+                        onChanged: (value) {
+                          setDialogState(() {
+                            workingColor = workingColor.withSaturation(value);
+                          });
+                        },
+                      ),
+                      Text(
+                        'Value ${(workingColor.value * 100).round()}%',
+                        style: const TextStyle(fontSize: 12, color: StudioPalette.textMuted),
+                      ),
+                      Slider(
+                        value: workingColor.value,
+                        min: 0,
+                        max: 1,
+                        onChanged: (value) {
+                          setDialogState(() {
+                            workingColor = workingColor.withValue(value);
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: <Widget>[
+                          StudioButton(
+                            label: 'Cancel',
+                            onPressed: () => Navigator.of(context).pop(),
+                          ),
+                          const SizedBox(width: 8),
+                          StudioButton(
+                            label: 'Apply',
+                            onPressed: () {
+                              applied = true;
+                              Navigator.of(context).pop();
+                            },
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
-                )
-                .toList(),
-          ),
-        ],
-      ),
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
+
+    if (applied) {
+      setState(() {
+        _brushColor = workingColor.toColor();
+      });
+    }
   }
 
   Widget _buildInspectorOverlayPane(ArtworkDetails details) {
@@ -1101,72 +1080,12 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
   }
 
   Widget _buildControlsPanel(ArtworkDetails details) {
-    final palette = <Color>[
-      const Color(0xFF111827),
-      const Color(0xFF0E7490),
-      const Color(0xFFCA8A04),
-      const Color(0xFF16A34A),
-      const Color(0xFFDB2777),
-      const Color(0xFFEA580C),
-    ];
-
     return StudioPanel(
       child: ListView(
         children: <Widget>[
           const StudioSectionLabel('Inspector'),
           const SizedBox(height: 8),
           _buildCollaborationSection(details),
-          const SizedBox(height: 14),
-          const StudioSectionLabel('Brush'),
-          const SizedBox(height: 8),
-          Text(
-            '${_tool == _EditorTool.eraser ? 'Eraser' : 'Brush'} Size ${_brushSize.toStringAsFixed(0)}',
-            style: const TextStyle(fontSize: 12, color: StudioPalette.textMuted),
-          ),
-          Slider(
-            value: _brushSize,
-            min: 2,
-            max: 36,
-            onChanged: (value) {
-              setState(() {
-                _brushSize = value;
-              });
-            },
-          ),
-          const SizedBox(height: 6),
-          const StudioSectionLabel('Color'),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: palette
-                .map(
-                  (color) => GestureDetector(
-                    onTap: _tool == _EditorTool.eraser
-                        ? null
-                        : () {
-                            setState(() {
-                              _brushColor = color;
-                            });
-                          },
-                    child: Container(
-                      width: 24,
-                      height: 24,
-                      decoration: BoxDecoration(
-                        color: color,
-                        borderRadius: BorderRadius.circular(4),
-                        border: Border.all(
-                          color: _brushColor == color
-                              ? StudioPalette.textStrong
-                              : StudioPalette.border,
-                          width: _brushColor == color ? 2 : 1,
-                        ),
-                      ),
-                    ),
-                  ),
-                )
-                .toList(),
-          ),
           const SizedBox(height: 14),
           _buildLayersSection(details),
         ],
