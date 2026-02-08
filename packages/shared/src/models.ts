@@ -87,6 +87,10 @@ export interface StrokePayload {
   points: VectorPoint[];
 }
 
+export interface StrokeRemovePayload {
+  strokeId: Id;
+}
+
 export interface CrdtOperation {
   id: Id;
   artworkId: Id;
@@ -95,8 +99,8 @@ export interface CrdtOperation {
   clientId: string;
   sequence: number;
   lamportTs: number;
-  type: "stroke.add" | "stroke.erase" | "layer.toggle_visibility" | "layer.reorder";
-  payload: StrokePayload | Record<string, unknown>;
+  type: "stroke.add" | "stroke.erase" | "stroke.remove" | "layer.toggle_visibility" | "layer.reorder";
+  payload: StrokePayload | StrokeRemovePayload | Record<string, unknown>;
   createdAt: IsoDateTime;
 }
 

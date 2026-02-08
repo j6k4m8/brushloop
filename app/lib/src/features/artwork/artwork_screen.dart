@@ -355,6 +355,29 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
     });
   }
 
+  /// Broadcasts stroke removal as a collaborative undo operation.
+  void _sendStrokeRemoveOperation(CanvasStroke stroke) {
+    _socket?.send(<String, dynamic>{
+      'type': 'client.apply_operations',
+      'artworkId': widget.artwork.id,
+      'operations': <Map<String, dynamic>>[
+        <String, dynamic>{
+          'id': _newOperationId(),
+          'artworkId': widget.artwork.id,
+          'layerId': stroke.layerId,
+          'actorUserId': widget.controller.session?.user.id,
+          'clientId': 'flutter-client',
+          'sequence': DateTime.now().microsecondsSinceEpoch,
+          'lamportTs': DateTime.now().millisecondsSinceEpoch,
+          'type': 'stroke.remove',
+          'payload': <String, dynamic>{
+            'strokeId': stroke.id,
+          },
+        },
+      ],
+    });
+  }
+
   Future<void> _submitTurn() async {
     final details = _details;
     if (details == null || details.artwork.mode != ArtworkMode.turnBased) {
@@ -467,24 +490,35 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
   }
 
   void _undo() {
-    if (_strokes.isEmpty) {
+    if (!_canEdit || _strokes.isEmpty) {
       return;
     }
 
+    CanvasStroke? removed;
     setState(() {
-      final removed = _strokes.removeLast();
-      _redoBuffer.add(removed);
+      removed = _strokes.removeLast();
+      _redoBuffer.add(removed!);
     });
+
+    if (removed case final stroke?) {
+      _sendStrokeRemoveOperation(stroke);
+    }
   }
 
   void _redo() {
-    if (_redoBuffer.isEmpty) {
+    if (!_canEdit || _redoBuffer.isEmpty) {
       return;
     }
 
+    CanvasStroke? restored;
     setState(() {
-      _upsertStroke(_redoBuffer.removeLast());
+      restored = _redoBuffer.removeLast();
+      _upsertStroke(restored!);
     });
+
+    if (restored case final stroke?) {
+      _sendStrokeOperation(stroke);
+    }
   }
 
   void _handleSocketMessage(Map<String, dynamic> payload) {
@@ -514,6 +548,12 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
     var changed = false;
     for (final operation in operations) {
       if (operation is! Map<String, dynamic>) {
+        continue;
+      }
+
+      final removedStrokeId = _strokeIdFromRemoveOperation(operation);
+      if (removedStrokeId != null) {
+        changed = _removeStrokeById(removedStrokeId) || changed;
         continue;
       }
 
@@ -586,6 +626,22 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
     return true;
   }
 
+  bool _removeStrokeById(String strokeId) {
+    var changed = false;
+    final existingIndex = _strokes.indexWhere((candidate) => candidate.id == strokeId);
+    if (existingIndex >= 0) {
+      _strokes.removeAt(existingIndex);
+      changed = true;
+    }
+
+    if (_activeStroke?.id == strokeId) {
+      _activeStroke = null;
+      changed = true;
+    }
+
+    return changed;
+  }
+
   bool _strokesEqual(CanvasStroke a, CanvasStroke b) {
     if (a.id != b.id ||
         a.layerId != b.layerId ||
@@ -656,6 +712,24 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
       points: points,
       isEraser: isEraser,
     );
+  }
+
+  String? _strokeIdFromRemoveOperation(Map<String, dynamic> operation) {
+    if (operation['type'] != 'stroke.remove') {
+      return null;
+    }
+
+    final payload = operation['payload'];
+    if (payload is! Map<String, dynamic>) {
+      return null;
+    }
+
+    final strokeId = payload['strokeId'];
+    if (strokeId is! String || strokeId.isEmpty) {
+      return null;
+    }
+
+    return strokeId;
   }
 
   Color _parseColor(String? rawColor) {
