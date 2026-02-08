@@ -24,4 +24,4 @@
 - [x] Task 22: Redesign the Flutter app UI into a Photoshop-style studio interface across all screens.
 - [x] Task 23: Optimize editor screen real estate with workspace-first layout and mobile floating panes.
 - [x] Task 24: Replace editor tools with top control strip and full color picker dialog.
-- [T] Task 25: Add visual package-based color picker and eyedropper tool to editor.
+- [x] Task 25: Add visual package-based color picker and eyedropper tool to editor.
