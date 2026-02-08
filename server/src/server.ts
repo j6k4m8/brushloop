@@ -412,6 +412,47 @@ export function createAppServer(): AppServer {
     writeJson(res, 200, details);
   });
 
+  router.register("POST", "/api/artworks/:artworkId/layers", async ({ req, res, params }) => {
+    const auth = requireAuth(req, res, db);
+    if (!auth) {
+      return;
+    }
+
+    const artworkId = params.artworkId;
+    if (!artworkId) {
+      writeJson(res, 400, { error: "artwork_id_required" });
+      return;
+    }
+
+    const body = await readJsonBody(req);
+    let layerName: string | undefined;
+    if (body != null) {
+      if (typeof body !== "object" || Array.isArray(body)) {
+        writeJson(res, 400, { error: "invalid_payload" });
+        return;
+      }
+
+      const candidate = (body as Record<string, unknown>).name;
+      if (candidate != null) {
+        if (typeof candidate !== "string") {
+          writeJson(res, 400, { error: "name_must_be_string" });
+          return;
+        }
+        layerName = candidate;
+      }
+    }
+
+    try {
+      const layer = db.createLayer(artworkId, auth.user.id, layerName);
+      writeJson(res, 201, layer);
+    } catch (error) {
+      writeJson(res, 400, {
+        error: "create_layer_failed",
+        message: error instanceof Error ? error.message : "unknown error"
+      });
+    }
+  });
+
   router.register("POST", "/api/turns/submit", async ({ req, res }) => {
     const auth = requireAuth(req, res, db);
     if (!auth) {

@@ -124,27 +124,28 @@ class _DrawingPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Draw strokes in an isolated layer so erase blend modes punch through
-    // reliably across platforms and reveal content below the canvas.
-    canvas.saveLayer(Offset.zero & size, Paint());
+    final layerIds = visibleLayerIds.toList()
+      ..sort((a, b) => (layerOrder[a] ?? 0).compareTo(layerOrder[b] ?? 0));
 
-    final sorted = <CanvasStroke>[...strokes]
-      ..sort(
-        (a, b) => (layerOrder[a.layerId] ?? 0).compareTo(layerOrder[b.layerId] ?? 0),
-      );
+    for (final layerId in layerIds) {
+      // Isolate each layer so clear blend mode only affects that layer.
+      canvas.saveLayer(Offset.zero & size, Paint());
 
-    for (final stroke in sorted) {
-      if (!visibleLayerIds.contains(stroke.layerId)) {
-        continue;
+      for (final stroke in strokes) {
+        if (stroke.layerId != layerId) {
+          continue;
+        }
+        _paintStroke(canvas, stroke);
       }
-      _paintStroke(canvas, stroke);
-    }
 
-    if (activeStroke case final stroke?) {
-      _paintStroke(canvas, stroke);
-    }
+      if (activeStroke case final stroke?) {
+        if (stroke.layerId == layerId) {
+          _paintStroke(canvas, stroke);
+        }
+      }
 
-    canvas.restore();
+      canvas.restore();
+    }
   }
 
   @override

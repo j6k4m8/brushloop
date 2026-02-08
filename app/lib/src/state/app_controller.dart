@@ -204,6 +204,28 @@ class AppController extends ChangeNotifier {
     return _apiClient.fetchArtworkDetails(token: token, artworkId: artworkId);
   }
 
+  /// Adds a new layer and returns refreshed artwork details.
+  Future<ArtworkDetails> createLayer({
+    required String artworkId,
+    String? name,
+  }) async {
+    final token = _session?.token;
+    if (token == null) {
+      throw const ApiException(statusCode: 401, message: 'Not authenticated');
+    }
+
+    await _runBusy(() async {
+      await _apiClient.createLayer(
+        token: token,
+        artworkId: artworkId,
+        name: name,
+      );
+      await _loadHomeData();
+    });
+
+    return _apiClient.fetchArtworkDetails(token: token, artworkId: artworkId);
+  }
+
   Future<void> _loadHomeData() async {
     final token = _session?.token;
     if (token == null) {

@@ -93,3 +93,31 @@ test("declining an invitation marks it declined and does not create contacts", (
 
   db.close();
 });
+
+test("creating multiple layers increments sort order", () => {
+  const dbPath = makeTmpPath("layers");
+  const db = new BrushloopDatabase(dbPath);
+
+  const user = db.createUser("layers@example.com", "Layers", hashPassword("password123"));
+  const details = db.createArtwork({
+    title: "Layered Art",
+    mode: "real_time",
+    width: 1200,
+    height: 800,
+    basePhotoPath: null,
+    createdByUserId: user.id,
+    participantUserIds: [user.id],
+    turnDurationMinutes: null
+  });
+
+  const firstAdded = db.createLayer(details.artwork.id, user.id);
+  const secondAdded = db.createLayer(details.artwork.id, user.id, "Highlights");
+
+  assert.equal(firstAdded.sortOrder + 1, secondAdded.sortOrder);
+  assert.equal(secondAdded.name, "Highlights");
+
+  const refreshed = db.getArtworkDetailsForUser(details.artwork.id, user.id);
+  assert.equal(refreshed?.layers.length, 3);
+
+  db.close();
+});

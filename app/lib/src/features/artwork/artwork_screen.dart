@@ -318,6 +318,85 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
     });
   }
 
+  Future<void> _addLayer() async {
+    final details = _details;
+    if (details == null) {
+      return;
+    }
+
+    final nameController = TextEditingController();
+    String? chosenName;
+    bool shouldCreate = false;
+    try {
+      final result = await showDialog<bool>(
+        context: context,
+        builder: (context) {
+          return AlertDialog(
+            title: const Text('Add Layer'),
+            content: TextField(
+              controller: nameController,
+              decoration: const InputDecoration(
+                labelText: 'Layer name (optional)',
+                hintText: 'e.g. Shading',
+              ),
+            ),
+            actions: <Widget>[
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  chosenName = nameController.text.trim().isEmpty
+                      ? null
+                      : nameController.text.trim();
+                  Navigator.of(context).pop(true);
+                },
+                child: const Text('Add'),
+              ),
+            ],
+          );
+        },
+      );
+
+      shouldCreate = result == true;
+    } finally {
+      nameController.dispose();
+    }
+
+    if (!mounted || !shouldCreate) {
+      return;
+    }
+
+    try {
+      final refreshed = await widget.controller.createLayer(
+        artworkId: details.artwork.id,
+        name: chosenName,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _details = refreshed;
+        final editableLayers =
+            refreshed.layers.where((layer) => !layer.isLocked).toList()
+              ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+        if (editableLayers.isNotEmpty) {
+          _selectedLayerId = editableLayers.last.id;
+        }
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not add layer: $error')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final details = _details;
@@ -555,7 +634,21 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
               .toList(),
         ),
         const SizedBox(height: 20),
-        Text('Layers', style: Theme.of(context).textTheme.titleMedium),
+        Row(
+          children: <Widget>[
+            Expanded(
+              child: Text(
+                'Layers',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+            ),
+            IconButton(
+              onPressed: _canEdit ? _addLayer : null,
+              icon: const Icon(Icons.add),
+              tooltip: 'Add Layer',
+            ),
+          ],
+        ),
         const SizedBox(height: 8),
         for (final layer in details.layers)
           Card(

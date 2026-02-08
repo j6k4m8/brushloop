@@ -779,6 +779,68 @@ export class BrushloopDatabase {
     };
   }
 
+  createLayer(artworkId: Id, userId: Id, name?: string): Layer {
+    const membership = this.db
+      .prepare(
+        `SELECT id
+         FROM artwork_participants
+         WHERE artwork_id = ? AND user_id = ?`
+      )
+      .get(artworkId, userId) as { id: string } | undefined;
+
+    if (!membership) {
+      throw new Error("user is not a participant in this artwork");
+    }
+
+    const row = this.db
+      .prepare(
+        `SELECT COALESCE(MAX(sort_order), -1) AS max_sort_order
+         FROM layers
+         WHERE artwork_id = ?`
+      )
+      .get(artworkId) as { max_sort_order: number };
+
+    const sortOrder = row.max_sort_order + 1;
+    const finalName = name && name.trim().length > 0 ? name.trim() : `Layer ${sortOrder}`;
+    const id = randomUUID();
+    const createdAt = nowIso();
+
+    this.db.exec("BEGIN");
+    try {
+      this.db
+        .prepare(
+          `INSERT INTO layers (
+             id, artwork_id, name, sort_order, is_visible, is_locked, created_by_user_id, created_at
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+        )
+        .run(id, artworkId, finalName, sortOrder, 1, 0, userId, createdAt);
+
+      this.db
+        .prepare(
+          `UPDATE artworks
+           SET updated_at = ?
+           WHERE id = ?`
+        )
+        .run(createdAt, artworkId);
+
+      this.db.exec("COMMIT");
+    } catch (error) {
+      this.db.exec("ROLLBACK");
+      throw error;
+    }
+
+    return {
+      id,
+      artworkId,
+      name: finalName,
+      sortOrder,
+      isVisible: true,
+      isLocked: false,
+      createdByUserId: userId,
+      createdAt
+    };
+  }
+
   submitTurn(
     artworkId: Id,
     actorUserId: Id,

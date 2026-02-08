@@ -174,6 +174,22 @@ class ApiClient {
     );
   }
 
+  /// Creates a new editable layer on an artwork.
+  Future<ArtworkLayer> createLayer({
+    required String token,
+    required String artworkId,
+    String? name,
+  }) async {
+    final payload = await _requestJson(
+      method: 'POST',
+      path: '/api/artworks/$artworkId/layers',
+      token: token,
+      jsonBody: name == null ? <String, dynamic>{} : <String, dynamic>{'name': name},
+    );
+
+    return ArtworkLayer.fromJson(payload as Map<String, dynamic>);
+  }
+
   /// Uploads a media file to the server and returns stored metadata.
   Future<UploadedMedia> uploadMedia({
     required String token,
