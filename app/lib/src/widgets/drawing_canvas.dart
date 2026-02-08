@@ -101,12 +101,9 @@ class DrawingCanvas extends StatelessWidget {
       onPanStart: canEdit ? onPanStart : null,
       onPanUpdate: canEdit ? onPanUpdate : null,
       onPanEnd: canEdit ? onPanEnd : null,
-      child: Container(
-        color: const Color(0xFFFCFCFD),
-        child: CustomPaint(
-          painter: painter,
-          child: const SizedBox.expand(),
-        ),
+      child: CustomPaint(
+        painter: painter,
+        child: const SizedBox.expand(),
       ),
     );
   }

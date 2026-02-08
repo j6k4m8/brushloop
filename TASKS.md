@@ -12,3 +12,4 @@
 - [x] Task 10: Implement real Flutter camera/gallery flows with media upload wired into artwork creation.
 - [x] Task 11: Fix platform network permissions/config so sign-in works on macOS/iOS/Android.
 - [x] Task 12: Allow solo artwork creation without requiring invites/contacts.
+- [T] Task 13: Convert eraser to true brush-style erase and keep undo/redo behavior correct.

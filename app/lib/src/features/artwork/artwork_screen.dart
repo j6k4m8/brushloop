@@ -158,15 +158,12 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
       return;
     }
 
-    if (_tool == _EditorTool.eraser) {
-      _eraseOnLayer(layerId);
-      return;
-    }
-
     final stroke = CanvasStroke(
       id: _newStrokeId(),
       layerId: layerId,
-      color: _brushColor,
+      color: _tool == _EditorTool.eraser
+          ? const Color(0x00000000)
+          : _brushColor,
       size: _brushSize,
       points: <CanvasStrokePoint>[
         CanvasStrokePoint(
@@ -174,7 +171,7 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
           y: details.localPosition.dy,
         ),
       ],
-      isEraser: false,
+      isEraser: _tool == _EditorTool.eraser,
     );
 
     setState(() {
@@ -223,39 +220,6 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
     _sendStrokeOperation(activeStroke);
   }
 
-  void _eraseOnLayer(String layerId) {
-    final index = _strokes.lastIndexWhere((stroke) => stroke.layerId == layerId);
-    if (index == -1) {
-      return;
-    }
-
-    final removed = _strokes[index];
-    setState(() {
-      _strokes.removeAt(index);
-      _redoBuffer.clear();
-    });
-
-    _socket?.send(<String, dynamic>{
-      'type': 'client.apply_operations',
-      'artworkId': widget.artwork.id,
-      'operations': <Map<String, dynamic>>[
-        <String, dynamic>{
-          'id': _newOperationId(),
-          'artworkId': widget.artwork.id,
-          'layerId': layerId,
-          'actorUserId': widget.controller.session?.user.id,
-          'clientId': 'flutter-client',
-          'sequence': DateTime.now().microsecondsSinceEpoch,
-          'lamportTs': DateTime.now().millisecondsSinceEpoch,
-          'type': 'stroke.erase',
-          'payload': <String, dynamic>{
-            'strokeId': removed.id,
-          },
-        },
-      ],
-    });
-  }
-
   void _sendStrokeOperation(CanvasStroke stroke) {
     _socket?.send(<String, dynamic>{
       'type': 'client.apply_operations',
@@ -269,10 +233,10 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
           'clientId': 'flutter-client',
           'sequence': DateTime.now().microsecondsSinceEpoch,
           'lamportTs': DateTime.now().millisecondsSinceEpoch,
-          'type': 'stroke.add',
+          'type': stroke.isEraser ? 'stroke.erase' : 'stroke.add',
           'payload': <String, dynamic>{
             'strokeId': stroke.id,
-            'tool': 'brush',
+            'tool': stroke.isEraser ? 'eraser' : 'brush',
             'color':
                 '#${stroke.color.toARGB32().toRadixString(16).padLeft(8, '0')}',
             'size': stroke.size,
@@ -543,18 +507,19 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
           },
         ),
         const SizedBox(height: 12),
-        Text('Brush Size ${_brushSize.toStringAsFixed(0)}'),
+        Text(
+          '${_tool == _EditorTool.eraser ? 'Eraser' : 'Brush'} Size '
+          '${_brushSize.toStringAsFixed(0)}',
+        ),
         Slider(
           value: _brushSize,
           min: 2,
           max: 36,
-          onChanged: _tool == _EditorTool.eraser
-              ? null
-              : (value) {
-                  setState(() {
-                    _brushSize = value;
-                  });
-                },
+          onChanged: (value) {
+            setState(() {
+              _brushSize = value;
+            });
+          },
         ),
         const SizedBox(height: 8),
         Text('Color', style: Theme.of(context).textTheme.titleSmall),
