@@ -30,4 +30,4 @@
 - [x] Task 28: Fix Flutter gesture recognizer conflict by using a single scale-based canvas gesture pipeline.
 - [x] Task 29: Add live phantom brush-size preview during slider and pinch resizing.
 - [x] Task 30: Add turn-based first-turn chooser and waiting-user submit-turn indicator.
-- [T] Task 31: Add artwork rename flows and collaboration descriptor labels in list/editor header.
+- [x] Task 31: Add artwork rename flows and collaboration descriptor labels in list/editor header.
