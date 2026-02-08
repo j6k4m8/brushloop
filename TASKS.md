@@ -29,4 +29,4 @@
 - [x] Task 27: Support pinch-to-resize brush while using brush or eraser tools.
 - [x] Task 28: Fix Flutter gesture recognizer conflict by using a single scale-based canvas gesture pipeline.
 - [x] Task 29: Add live phantom brush-size preview during slider and pinch resizing.
-- [T] Task 30: Add turn-based first-turn chooser and waiting-user submit-turn indicator.
+- [x] Task 30: Add turn-based first-turn chooser and waiting-user submit-turn indicator.
