@@ -28,6 +28,9 @@ This repo includes:
 - `docker-compose.yml` with:
   - `api` service (BrushLoop backend).
   - `edge` service (Caddy TLS + routing).
+- `deploy/domains.env` as the single source of truth for:
+  - `WEB_DOMAIN`
+  - `API_DOMAIN`
 
 Persistent state is mounted at `./deploy/data`:
 
@@ -49,15 +52,10 @@ docker compose down
 
 ## Domain Routing
 
-The default compose routing is:
+Compose/Caddy routes:
 
-- `brushloop.jordan.matelsky.com` -> static site from `website/`
-- `api.brushloop.jordan.matelsky.com` -> BrushLoop API (`/ws` included)
-
-Update domains via compose environment variables if needed:
-
-- `WEB_DOMAIN`
-- `API_DOMAIN`
+- `WEB_DOMAIN` -> Flutter web build from `app/build/web`
+- `API_DOMAIN` -> BrushLoop API (`/ws` included)
 
 DNS requirements:
 
@@ -84,8 +82,14 @@ Platform examples:
 - Back up both `brushloop.sqlite` and media files referenced by DB paths.
 - Place backend behind a reverse proxy if exposing beyond localhost.
 - If using HTTPS, proxy `/ws` with websocket upgrade support.
-- For web app builds, point Flutter to the API domain:
-  - `flutter build web --dart-define=BRUSHLOOP_API_BASE_URL=https://api.brushloop.jordan.matelsky.com`
+- Build web app using `API_DOMAIN` from `deploy/domains.env`:
+
+```bash
+source deploy/domains.env
+cd app
+flutter build web --release --dart-define=BRUSHLOOP_API_BASE_URL=https://$API_DOMAIN
+cd ..
+```
 
 ## Verification Checklist
 

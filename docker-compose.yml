@@ -24,15 +24,14 @@ services:
     restart: unless-stopped
     depends_on:
       - api
+    env_file:
+      - ./deploy/domains.env
     ports:
       - "80:80"
       - "443:443"
-    environment:
-      WEB_DOMAIN: brushloop.jordan.matelsky.com
-      API_DOMAIN: api.brushloop.jordan.matelsky.com
     volumes:
       - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
-      - ./website:/srv/website:ro
+      - ./app/build/web:/srv/flutter-web:ro
       - caddy_data:/data
       - caddy_config:/config
 

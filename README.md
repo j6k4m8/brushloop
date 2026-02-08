@@ -32,17 +32,28 @@ flutter run --dart-define=BRUSHLOOP_API_BASE_URL=http://127.0.0.1:8787
 
 ## Docker Deployment
 
-Use Compose to run API + TLS edge proxy with persistent data mounts:
+Use Compose to run API + TLS edge proxy with persistent data mounts.
+
+Domains are configured in one place:
+
+- `deploy/domains.env`
+
+Build the Flutter web app for your API domain:
+
+```bash
+source deploy/domains.env
+cd app
+flutter build web --release --dart-define=BRUSHLOOP_API_BASE_URL=https://$API_DOMAIN
+cd ..
+```
+
+Start the stack:
 
 ```bash
 docker compose up -d --build
 ```
 
-Default hostnames in `docker-compose.yml`:
-
-- `brushloop.jordan.matelsky.com` for the web site
-- `api.brushloop.jordan.matelsky.com` for the API/WebSocket endpoint
-
+The web domain serves the Flutter build from `app/build/web`.
 Persistent API state is mounted at `./deploy/data`.
 
 ## Quality Commands
