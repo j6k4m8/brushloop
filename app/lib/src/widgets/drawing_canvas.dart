@@ -1,3 +1,5 @@
+import 'dart:ui' show PictureRecorder;
+
 import 'package:flutter/material.dart';
 
 /// A sampled point in a vector stroke.
@@ -128,23 +130,27 @@ class _DrawingPainter extends CustomPainter {
       ..sort((a, b) => (layerOrder[a] ?? 0).compareTo(layerOrder[b] ?? 0));
 
     for (final layerId in layerIds) {
-      // Isolate each layer so clear blend mode only affects that layer.
-      canvas.saveLayer(Offset.zero & size, Paint());
+      // Draw each layer into an offscreen picture so erasing cannot modify
+      // already-composited lower layers.
+      final recorder = PictureRecorder();
+      final layerCanvas = Canvas(recorder);
 
       for (final stroke in strokes) {
         if (stroke.layerId != layerId) {
           continue;
         }
-        _paintStroke(canvas, stroke);
+        _paintStroke(layerCanvas, stroke);
       }
 
       if (activeStroke case final stroke?) {
         if (stroke.layerId == layerId) {
-          _paintStroke(canvas, stroke);
+          _paintStroke(layerCanvas, stroke);
         }
       }
 
-      canvas.restore();
+      final picture = recorder.endRecording();
+      canvas.drawPicture(picture);
+      picture.dispose();
     }
   }
 

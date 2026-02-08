@@ -16,3 +16,4 @@
 - [x] Task 14: Add pending invites UI and accept/deny flow from buddy list.
 - [x] Task 15: Fix eraser rendering so it clears pixels reliably without black/off-white artifacts.
 - [x] Task 16: Add multi-layer creation and make eraser compositing correct per layer.
+- [T] Task 17: Isolate per-layer rendering so eraser cannot affect layers below.
