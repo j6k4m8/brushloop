@@ -10,4 +10,4 @@
 - [x] Task 8: Write deployment + developer documentation and verify end-to-end commands.
 - [x] Task 9: Implement production-grade media storage abstraction, metadata persistence, and upload/download API.
 - [x] Task 10: Implement real Flutter camera/gallery flows with media upload wired into artwork creation.
-- [T] Task 11: Fix platform network permissions/config so sign-in works on macOS/iOS/Android.
+- [x] Task 11: Fix platform network permissions/config so sign-in works on macOS/iOS/Android.
