@@ -9,4 +9,4 @@
 - [x] Task 7: Add tests and lint/format checks across server and shared packages.
 - [x] Task 8: Write deployment + developer documentation and verify end-to-end commands.
 - [x] Task 9: Implement production-grade media storage abstraction, metadata persistence, and upload/download API.
-- [T] Task 10: Implement real Flutter camera/gallery flows with media upload wired into artwork creation.
+- [x] Task 10: Implement real Flutter camera/gallery flows with media upload wired into artwork creation.
