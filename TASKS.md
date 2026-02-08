@@ -13,4 +13,4 @@
 - [x] Task 11: Fix platform network permissions/config so sign-in works on macOS/iOS/Android.
 - [x] Task 12: Allow solo artwork creation without requiring invites/contacts.
 - [x] Task 13: Convert eraser to true brush-style erase and keep undo/redo behavior correct.
-- [T] Task 14: Add pending invites UI and accept/deny flow from buddy list.
+- [x] Task 14: Add pending invites UI and accept/deny flow from buddy list.
