@@ -214,6 +214,7 @@ class _CreateArtworkDialogState extends State<_CreateArtworkDialog> {
   ContactSummary? _selectedContact;
   bool _soloArtwork = false;
   ArtworkMode _mode = ArtworkMode.realTime;
+  _InitialTurnChoice _firstTurnChoice = _InitialTurnChoice.me;
   _PickedArtworkPhoto? _photo;
   bool _isPickingPhoto = false;
   bool _isSubmitting = false;
@@ -281,9 +282,19 @@ class _CreateArtworkDialogState extends State<_CreateArtworkDialog> {
 
     try {
       final basePhoto = _photo;
+      final sessionUser = widget.controller.session?.user;
+      final firstTurnUserId = _mode != ArtworkMode.turnBased
+          ? null
+          : (_soloArtwork ||
+                  _selectedContact == null ||
+                  _firstTurnChoice == _InitialTurnChoice.me)
+              ? sessionUser?.id
+              : _selectedContact!.userId;
+
       await widget.controller.createArtwork(
         mode: _mode,
         collaborator: _soloArtwork ? null : _selectedContact,
+        firstTurnUserId: firstTurnUserId,
         basePhoto: basePhoto == null
             ? null
             : ArtworkBasePhotoInput(
@@ -344,6 +355,11 @@ class _CreateArtworkDialogState extends State<_CreateArtworkDialog> {
                         : (value) {
                             setState(() {
                               _soloArtwork = value ?? false;
+                              if (!_soloArtwork &&
+                                  _selectedContact == null &&
+                                  widget.controller.contacts.isNotEmpty) {
+                                _selectedContact = widget.controller.contacts.first;
+                              }
                             });
                           },
                   ),
@@ -396,6 +412,44 @@ class _CreateArtworkDialogState extends State<_CreateArtworkDialog> {
                           });
                         },
                 ),
+                if (_mode == ArtworkMode.turnBased) ...<Widget>[
+                  const SizedBox(height: 10),
+                  _soloArtwork || _selectedContact == null
+                      ? const Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            'First turn: You',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: StudioPalette.textMuted,
+                            ),
+                          ),
+                        )
+                      : DropdownButtonFormField<_InitialTurnChoice>(
+                          initialValue: _firstTurnChoice,
+                          decoration: const InputDecoration(labelText: 'First turn'),
+                          items: <DropdownMenuItem<_InitialTurnChoice>>[
+                            const DropdownMenuItem<_InitialTurnChoice>(
+                              value: _InitialTurnChoice.me,
+                              child: Text('You'),
+                            ),
+                            DropdownMenuItem<_InitialTurnChoice>(
+                              value: _InitialTurnChoice.contact,
+                              child: Text(_selectedContact!.displayName),
+                            ),
+                          ],
+                          onChanged: _isSubmitting
+                              ? null
+                              : (value) {
+                                  if (value == null) {
+                                    return;
+                                  }
+                                  setState(() {
+                                    _firstTurnChoice = value;
+                                  });
+                                },
+                        ),
+                ],
                 const SizedBox(height: 14),
                 const StudioSectionLabel('Base Photo'),
                 const SizedBox(height: 8),
@@ -494,6 +548,11 @@ class _CreateArtworkDialogState extends State<_CreateArtworkDialog> {
       ),
     );
   }
+}
+
+enum _InitialTurnChoice {
+  me,
+  contact,
 }
 
 class _PickedArtworkPhoto {

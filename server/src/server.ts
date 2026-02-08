@@ -323,6 +323,7 @@ export function createAppServer(): AppServer {
     const participantSet = new Set(payload.participantUserIds);
     participantSet.add(auth.user.id);
     const participantUserIds = [...participantSet];
+    const firstTurnUserId = payload.firstTurnUserId ?? auth.user.id;
 
     for (const participantId of participantUserIds) {
       const participant = db.getUserById(participantId);
@@ -337,6 +338,25 @@ export function createAppServer(): AppServer {
       }
     }
 
+    const orderedParticipantUserIds =
+      payload.mode !== "turn_based"
+        ? participantUserIds
+        : (() => {
+            if (!participantSet.has(firstTurnUserId)) {
+              writeJson(res, 400, { error: `invalid_first_turn_user:${firstTurnUserId}` });
+              return null;
+            }
+
+            return [
+              firstTurnUserId,
+              ...participantUserIds.filter((userId) => userId !== firstTurnUserId)
+            ];
+          })();
+
+    if (orderedParticipantUserIds == null) {
+      return;
+    }
+
     try {
       const details = db.createArtwork({
         title: payload.title,
@@ -345,7 +365,7 @@ export function createAppServer(): AppServer {
         height: payload.height,
         basePhotoPath: payload.basePhotoPath ?? null,
         createdByUserId: auth.user.id,
-        participantUserIds,
+        participantUserIds: orderedParticipantUserIds,
         turnDurationMinutes: payload.turnDurationMinutes ?? null
       });
 

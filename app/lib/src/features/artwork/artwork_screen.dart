@@ -780,6 +780,12 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
     required bool showInspectorToggle,
   }) {
     final turn = details.currentTurn;
+    final waitingName = turn == null
+        ? 'participant'
+        : _displayNameForUserId(turn.activeParticipantUserId);
+    final turnButtonLabel = _canEdit
+        ? 'Submit Turn'
+        : 'Waiting for $waitingName';
     return StudioPanel(
       color: StudioPalette.chrome,
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -826,8 +832,8 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
             ),
           if (details.artwork.mode == ArtworkMode.turnBased)
             StudioButton(
-              label: 'Submit Turn',
-              icon: Icons.check,
+              label: turnButtonLabel,
+              icon: _canEdit ? Icons.check : Icons.hourglass_bottom,
               onPressed: _canEdit ? _submitTurn : null,
             ),
           if (showInspectorToggle) ...<Widget>[
@@ -846,6 +852,25 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
         ],
       ),
     );
+  }
+
+  /// Resolves a user id into a UI-friendly display name when available.
+  String _displayNameForUserId(String userId) {
+    final sessionUser = widget.controller.session?.user;
+    if (sessionUser != null && sessionUser.id == userId) {
+      return sessionUser.displayName;
+    }
+
+    for (final contact in widget.controller.contacts) {
+      if (contact.userId == userId) {
+        return contact.displayName;
+      }
+    }
+
+    if (userId.length <= 16) {
+      return userId;
+    }
+    return '${userId.substring(0, 16)}...';
   }
 
   Widget _buildQuickToolRow() {

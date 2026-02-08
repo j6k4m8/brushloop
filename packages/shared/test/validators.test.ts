@@ -45,12 +45,14 @@ test("parseCreateArtworkRequest parses turn-based payload", () => {
     title: "Round Robin",
     mode: "turn_based",
     participantUserIds: ["u1", "u2"],
+    firstTurnUserId: "u2",
     width: 1920,
     height: 1080,
     turnDurationMinutes: 60
   });
 
   assert.equal(parsed.mode, "turn_based");
+  assert.equal(parsed.firstTurnUserId, "u2");
   assert.equal(parsed.turnDurationMinutes, 60);
   assert.deepEqual(parsed.participantUserIds, ["u1", "u2"]);
 });

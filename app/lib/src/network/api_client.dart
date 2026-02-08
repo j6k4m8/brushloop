@@ -154,6 +154,7 @@ class ApiClient {
     required String title,
     required ArtworkMode mode,
     required List<String> participantUserIds,
+    String? firstTurnUserId,
     required int width,
     required int height,
     String? basePhotoPath,
@@ -166,6 +167,8 @@ class ApiClient {
         'title': title,
         'mode': mode == ArtworkMode.realTime ? 'real_time' : 'turn_based',
         'participantUserIds': participantUserIds,
+        'firstTurnUserId':
+            mode == ArtworkMode.turnBased ? firstTurnUserId : null,
         'width': width,
         'height': height,
         'basePhotoPath': basePhotoPath,

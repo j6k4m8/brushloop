@@ -105,6 +105,7 @@ export function parseCreateArtworkRequest(input: unknown): CreateArtworkRequest 
     title: requireString(input.title, "title"),
     mode,
     participantUserIds: requireStringArray(input.participantUserIds, "participantUserIds"),
+    firstTurnUserId: input.firstTurnUserId == null ? null : requireString(input.firstTurnUserId, "firstTurnUserId"),
     width: requireNumber(input.width, "width"),
     height: requireNumber(input.height, "height"),
     basePhotoPath: input.basePhotoPath == null ? null : requireString(input.basePhotoPath, "basePhotoPath"),

@@ -33,6 +33,7 @@ export interface CreateArtworkRequest {
   title: string;
   mode: CollaborationMode;
   participantUserIds: Id[];
+  firstTurnUserId?: Id | null;
   width: number;
   height: number;
   basePhotoPath?: string | null;

@@ -142,6 +142,7 @@ class AppController extends ChangeNotifier {
   Future<void> createArtwork({
     required ArtworkMode mode,
     ContactSummary? collaborator,
+    String? firstTurnUserId,
     ArtworkBasePhotoInput? basePhoto,
   }) async {
     final token = _session?.token;
@@ -171,6 +172,7 @@ class AppController extends ChangeNotifier {
         participantUserIds: collaborator == null
             ? const <String>[]
             : <String>[collaborator.userId],
+        firstTurnUserId: firstTurnUserId,
         width: 1400,
         height: 1000,
         basePhotoPath: basePhotoPath,
