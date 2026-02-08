@@ -45,3 +45,5 @@
 - [x] Task 43: Restrict undo/redo to current user's strokes only in collaborative sessions.
 - [x] Task 44: Persist authenticated sessions across app restarts and browser refresh with startup restore.
 - [x] Task 45: Fix dev shutdown deadlocks and listener leaks by making signal handling idempotent and closing active sockets on stop.
+- [T] Task 46: Add adapted GitHub Actions workflows for PR checks, multi-platform tagged releases, and Pages deployment.
+- [T] Task 47: Build a polished static website with screenshot placeholders for GitHub Pages deployment.

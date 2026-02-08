@@ -1,0 +1,13 @@
+<svg width="1200" height="720" viewBox="0 0 1200 720" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg2" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ecf7ff" />
+      <stop offset="100%" stop-color="#fff1e8" />
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="720" fill="url(#bg2)" />
+  <rect x="70" y="60" width="1060" height="600" rx="24" fill="#ffffff" stroke="#c9d3dc" stroke-width="3" />
+  <text x="115" y="150" fill="#202830" font-size="48" font-family="Avenir Next, Segoe UI, sans-serif" font-weight="700">Realtime Canvas Placeholder</text>
+  <text x="115" y="205" fill="#66707a" font-size="28" font-family="Avenir Next, Segoe UI, sans-serif">Replace with: website/assets/screenshots/realtime-canvas.png</text>
+  <rect x="115" y="250" width="970" height="360" rx="18" fill="#f7fafc" stroke="#c6d3de" stroke-dasharray="10 8" />
+</svg>

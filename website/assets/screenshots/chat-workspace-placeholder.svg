@@ -1,0 +1,14 @@
+<svg width="1200" height="720" viewBox="0 0 1200 720" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg3" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#fff2e8" />
+      <stop offset="100%" stop-color="#eef9f6" />
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="720" fill="url(#bg3)" />
+  <rect x="80" y="60" width="1040" height="600" rx="24" fill="#fffdfb" stroke="#d9c8b3" stroke-width="3" />
+  <text x="120" y="150" fill="#2d261f" font-size="48" font-family="Avenir Next, Segoe UI, sans-serif" font-weight="700">Chat Workspace Placeholder</text>
+  <text x="120" y="205" fill="#6e6659" font-size="28" font-family="Avenir Next, Segoe UI, sans-serif">Replace with: website/assets/screenshots/chat-workspace.png</text>
+  <rect x="120" y="250" width="300" height="360" rx="16" fill="#f3ede4" stroke="#d8c7b1" stroke-dasharray="10 8" />
+  <rect x="440" y="250" width="640" height="360" rx="16" fill="#ecf7f2" stroke="#b9d6ca" stroke-dasharray="10 8" />
+</svg>

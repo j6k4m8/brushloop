@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BrushLoop</title>
+  <meta name="description"
+    content="BrushLoop is a collaborative drawing studio for realtime and turn-based creation across web, desktop, and mobile." />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+
+<body>
+  <div class="bg-orb orb-one"></div>
+  <div class="bg-orb orb-two"></div>
+
+  <header class="hero container">
+    <div class="hero-tag">Collaborative Drawing Studio</div>
+    <h1>BrushLoop</h1>
+    <p>
+      Create art together in real time, or take turns.
+    </p>
+    <div class="hero-actions">
+      <a class="btn btn-primary" href="#screens">See Screenshots</a>
+      <a class="btn btn-secondary" href="#architecture">Architecture</a>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="panel features" id="features">
+      <h2>What BrushLoop Does</h2>
+      <div class="feature-grid">
+        <article>
+          <h3>Realtime & Turn-Based</h3>
+          <p>Switch between simultaneous sketching and round-robin handoffs with clear turn ownership.</p>
+        </article>
+        <article>
+          <h3>Layered Workflow</h3>
+          <p>Keep base photos, paint layers, and eraser edits isolated so collaborators never destroy lower layers.</p>
+        </article>
+        <article>
+          <h3>Recoverable History</h3>
+          <p>CRDT operation logs and snapshots let you revisit progression, not just the final canvas.</p>
+        </article>
+        <article>
+          <h3>Built-In Collaboration Hub</h3>
+          <p>Contacts, invites, direct chat, and artwork events live in one workspace designed for shared process.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="panel screenshots" id="screens">
+      <div class="section-head">
+        <h2>Screenshots</h2>
+        <p>These are placeholders lol give me a little time to actually make these</p>
+      </div>
+      <div class="shot-grid">
+        <figure>
+          <img src="assets/screenshots/studio-overview-placeholder.svg" alt="Studio overview placeholder" />
+          <figcaption>Studio Overview</figcaption>
+        </figure>
+        <figure>
+          <img src="assets/screenshots/realtime-canvas-placeholder.svg" alt="Realtime canvas placeholder" />
+          <figcaption>Realtime Canvas</figcaption>
+        </figure>
+        <figure>
+          <img src="assets/screenshots/chat-workspace-placeholder.svg" alt="Chat workspace placeholder" />
+          <figcaption>Chat + Shared Artworks</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section class="split" id="architecture">
+      <article class="panel">
+        <h2>Platforms</h2>
+        <p>Single Flutter app shipped to:</p>
+        <ul>
+          <li>iOS</li>
+          <li>Android</li>
+          <li>Web</li>
+          <li>macOS</li>
+        </ul>
+      </article>
+      <article class="panel">
+        <h2>Architecture</h2>
+        <p>
+          Node.js + TypeScript backend, SQLite persistence, local media storage, WebSocket collaboration,
+          and no managed service dependencies.
+        </p>
+        <code class="stack">Flutter + Node.js + TypeScript + SQLite + WebSocket</code>
+      </article>
+    </section>
+  </main>
+
+  <footer class="container footer">
+    <p>&copy; jordan matelsky </p>
+  </footer>
+</body>
+
+</html>
