@@ -3,9 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
   "scripts": {
-    "lint": "echo 'shared lint placeholder'",
-    "test": "echo 'shared test placeholder'",
-    "build": "echo 'shared build placeholder'"
+    "lint": "node ../../scripts/lint.mjs packages/shared/src packages/shared/test",
+    "test": "node --experimental-strip-types --test test/*.test.ts",
+    "build": "node ../../scripts/noop-build.mjs shared",
+    "format": "node ../../scripts/noop-format.mjs shared"
   }
 }
