@@ -99,6 +99,10 @@ class HomeScreen extends StatelessWidget {
         ),
       ),
     );
+
+    if (context.mounted) {
+      await controller.refreshHome();
+    }
   }
 
   Future<void> _openRenameArtworkDialog(
@@ -741,6 +745,18 @@ class _ContactsPane extends StatelessWidget {
                                     ],
                                   ),
                                 ),
+                                if (contact.unreadMessageCount > 0)
+                                  Padding(
+                                    padding: const EdgeInsets.only(right: 8),
+                                    child: Container(
+                                      width: 8,
+                                      height: 8,
+                                      decoration: const BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        color: StudioPalette.accent,
+                                      ),
+                                    ),
+                                  ),
                                 const Icon(Icons.chat_bubble_outline, size: 15),
                               ],
                             ),

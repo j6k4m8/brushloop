@@ -92,6 +92,7 @@ export class BrushloopDatabase {
 
     this.db = new DatabaseSync(dbPath);
     this.db.exec(SCHEMA_SQL);
+    this.applySchemaMigrations();
   }
 
   close(): void {
@@ -233,6 +234,23 @@ export class BrushloopDatabase {
       createdAt,
       respondedAt: null
     };
+  }
+
+  private applySchemaMigrations(): void {
+    this.ensureChatMessageReadAtColumn();
+  }
+
+  private ensureChatMessageReadAtColumn(): void {
+    const columns = this.db
+      .prepare("PRAGMA table_info(chat_messages)")
+      .all() as Array<{ name: string }>;
+
+    const hasReadAt = columns.some((column) => column.name === "read_at");
+    if (hasReadAt) {
+      return;
+    }
+
+    this.db.exec("ALTER TABLE chat_messages ADD COLUMN read_at TEXT");
   }
 
   listPendingInvitationsForUser(userId: Id, email: string): ContactInvitation[] {
@@ -414,29 +432,38 @@ export class BrushloopDatabase {
     };
   }
 
-  listContacts(userId: Id): Array<{ userId: Id; displayName: string; email: string }> {
+  listContacts(userId: Id): Array<{ userId: Id; displayName: string; email: string; unreadMessageCount: number }> {
     const rows = this.db
       .prepare(
         `SELECT
            CASE WHEN c.user_a_id = ? THEN c.user_b_id ELSE c.user_a_id END AS contact_user_id,
            u.display_name,
-           u.email
+           u.email,
+           (
+             SELECT COUNT(*)
+             FROM chat_messages m
+             WHERE m.sender_user_id = CASE WHEN c.user_a_id = ? THEN c.user_b_id ELSE c.user_a_id END
+               AND m.recipient_user_id = ?
+               AND m.read_at IS NULL
+           ) AS unread_count
          FROM contacts c
          INNER JOIN users u
            ON u.id = CASE WHEN c.user_a_id = ? THEN c.user_b_id ELSE c.user_a_id END
          WHERE c.user_a_id = ? OR c.user_b_id = ?
          ORDER BY u.display_name ASC`
       )
-      .all(userId, userId, userId, userId) as Array<{
+      .all(userId, userId, userId, userId, userId, userId) as Array<{
       contact_user_id: string;
       display_name: string;
       email: string;
+      unread_count: number;
     }>;
 
     return rows.map((row) => ({
       userId: row.contact_user_id,
       displayName: row.display_name,
-      email: row.email
+      email: row.email,
+      unreadMessageCount: row.unread_count
     }));
   }
 
@@ -846,10 +873,10 @@ export class BrushloopDatabase {
     this.db
       .prepare(
         `INSERT INTO chat_messages (
-           id, sender_user_id, recipient_user_id, body, created_at
-         ) VALUES (?, ?, ?, ?, ?)`
+           id, sender_user_id, recipient_user_id, body, read_at, created_at
+         ) VALUES (?, ?, ?, ?, ?, ?)`
       )
-      .run(id, senderUserId, recipientUserId, finalBody, createdAt);
+      .run(id, senderUserId, recipientUserId, finalBody, null, createdAt);
 
     return {
       id,
@@ -887,6 +914,18 @@ export class BrushloopDatabase {
         body: row.body,
         createdAt: row.created_at
       }));
+  }
+
+  markDirectMessagesRead(recipientUserId: Id, senderUserId: Id): void {
+    this.db
+      .prepare(
+        `UPDATE chat_messages
+         SET read_at = ?
+         WHERE recipient_user_id = ?
+           AND sender_user_id = ?
+           AND read_at IS NULL`
+      )
+      .run(nowIso(), recipientUserId, senderUserId);
   }
 
   listSharedArtworksForUsers(userAId: Id, userBId: Id): ArtworkListItemRow[] {

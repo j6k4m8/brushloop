@@ -156,6 +156,7 @@ CREATE TABLE IF NOT EXISTS chat_messages (
   sender_user_id TEXT NOT NULL,
   recipient_user_id TEXT NOT NULL,
   body TEXT NOT NULL,
+  read_at TEXT,
   created_at TEXT NOT NULL,
   FOREIGN KEY (sender_user_id) REFERENCES users(id) ON DELETE CASCADE,
   FOREIGN KEY (recipient_user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -174,4 +175,6 @@ CREATE INDEX IF NOT EXISTS idx_chat_messages_sender_recipient_created
   ON chat_messages(sender_user_id, recipient_user_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_chat_messages_recipient_sender_created
   ON chat_messages(recipient_user_id, sender_user_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_chat_messages_recipient_sender_read
+  ON chat_messages(recipient_user_id, sender_user_id, read_at);
 `;

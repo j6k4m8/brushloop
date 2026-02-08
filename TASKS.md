@@ -33,3 +33,4 @@
 - [x] Task 31: Add artwork rename flows and collaboration descriptor labels in list/editor header.
 - [x] Task 32: Add contact chat workspace with inline artwork events and prioritize my-turn artworks.
 - [x] Task 33: Fix artwork header title-edit button alignment.
+- [T] Task 34: Add chat gap timestamps and unread indicators for contact chats.

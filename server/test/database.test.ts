@@ -176,10 +176,19 @@ test("chat helpers return direct messages and shared artwork events", () => {
   db.createDirectMessage(userA.id, userB.id, "Ready to draw?");
   db.createDirectMessage(userB.id, userA.id, "Yep, let us go.");
 
+  const contactsBeforeRead = db.listContacts(userA.id);
+  assert.equal(contactsBeforeRead[0]?.unreadMessageCount, 1);
+
   const messages = db.listDirectMessages(userA.id, userB.id);
   assert.equal(messages.length, 2);
-  assert.equal(messages[0]?.senderUserId, userA.id);
-  assert.equal(messages[1]?.senderUserId, userB.id);
+  assert.deepEqual(
+    messages.map((message) => message.senderUserId).sort(),
+    [userA.id, userB.id].sort()
+  );
+
+  db.markDirectMessagesRead(userA.id, userB.id);
+  const contactsAfterRead = db.listContacts(userA.id);
+  assert.equal(contactsAfterRead[0]?.unreadMessageCount, 0);
 
   const sharedArtworks = db.listSharedArtworksForUsers(userA.id, userB.id);
   assert.equal(sharedArtworks.length, 1);

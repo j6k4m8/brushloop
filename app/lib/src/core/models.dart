@@ -61,6 +61,7 @@ class ContactSummary {
     required this.userId,
     required this.displayName,
     required this.email,
+    required this.unreadMessageCount,
   });
 
   /// Contact user id.
@@ -72,12 +73,16 @@ class ContactSummary {
   /// Contact email.
   final String email;
 
+  /// Unread direct message count from this contact.
+  final int unreadMessageCount;
+
   /// Decode from JSON.
   factory ContactSummary.fromJson(Map<String, dynamic> json) {
     return ContactSummary(
       userId: json['userId'] as String,
       displayName: json['displayName'] as String,
       email: json['email'] as String,
+      unreadMessageCount: (json['unreadMessageCount'] as num?)?.toInt() ?? 0,
     );
   }
 }

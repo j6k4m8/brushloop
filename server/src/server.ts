@@ -243,6 +243,8 @@ export function createAppServer(): AppServer {
       return;
     }
 
+    db.markDirectMessagesRead(auth.user.id, contactUserId);
+
     const artworks = db.listSharedArtworksForUsers(auth.user.id, contactUserId);
     const messages = db.listDirectMessages(auth.user.id, contactUserId);
     const artworkCreatedEvents = db.listSharedArtworkCreationEvents(auth.user.id, contactUserId);
@@ -286,7 +288,8 @@ export function createAppServer(): AppServer {
       contact: {
         userId: contact.id,
         displayName: contact.displayName,
-        email: contact.email
+        email: contact.email,
+        unreadMessageCount: 0
       },
       artworks,
       timeline

@@ -25,6 +25,8 @@ class ChatScreen extends StatefulWidget {
 }
 
 class _ChatScreenState extends State<ChatScreen> {
+  static const Duration _chatTimestampGap = Duration(minutes: 30);
+
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _timelineScrollController = ScrollController();
 
@@ -216,21 +218,43 @@ class _ChatScreenState extends State<ChatScreen> {
         final item = thread.timeline[index];
         if (item.kind == ChatTimelineKind.message) {
           final mine = item.senderUserId == sessionUserId;
+          final showTimestamp = _shouldShowTimestampForMessage(
+            thread.timeline,
+            index,
+          );
+          final timestampLabel = _formatTimestampLabel(item.createdAt);
           return Align(
             alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
-            child: Container(
-              constraints: const BoxConstraints(maxWidth: 480),
-              margin: const EdgeInsets.symmetric(vertical: 4),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-              decoration: BoxDecoration(
-                color: mine ? StudioPalette.accent : StudioPalette.panelSoft,
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: StudioPalette.border),
-              ),
-              child: Text(
-                item.body ?? '',
-                style: const TextStyle(fontSize: 13),
-              ),
+            child: Column(
+              crossAxisAlignment:
+                  mine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+              children: <Widget>[
+                if (showTimestamp && timestampLabel != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2, bottom: 4),
+                    child: Text(
+                      timestampLabel,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: StudioPalette.textMuted,
+                      ),
+                    ),
+                  ),
+                Container(
+                  constraints: const BoxConstraints(maxWidth: 480),
+                  margin: const EdgeInsets.symmetric(vertical: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: mine ? StudioPalette.accent : StudioPalette.panelSoft,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: StudioPalette.border),
+                  ),
+                  child: Text(
+                    item.body ?? '',
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                ),
+              ],
             ),
           );
         }
@@ -278,6 +302,54 @@ class _ChatScreenState extends State<ChatScreen> {
         );
       },
     );
+  }
+
+  bool _shouldShowTimestampForMessage(List<ChatTimelineItem> timeline, int index) {
+    final current = timeline[index];
+    if (current.kind != ChatTimelineKind.message) {
+      return false;
+    }
+
+    final currentDate = DateTime.tryParse(current.createdAt);
+    if (currentDate == null) {
+      return false;
+    }
+
+    for (var previousIndex = index - 1; previousIndex >= 0; previousIndex -= 1) {
+      final previous = timeline[previousIndex];
+      if (previous.kind != ChatTimelineKind.message) {
+        continue;
+      }
+
+      final previousDate = DateTime.tryParse(previous.createdAt);
+      if (previousDate == null) {
+        return true;
+      }
+
+      return currentDate.difference(previousDate).abs() >= _chatTimestampGap;
+    }
+
+    return true;
+  }
+
+  String? _formatTimestampLabel(String isoTimestamp) {
+    final parsed = DateTime.tryParse(isoTimestamp);
+    if (parsed == null) {
+      return null;
+    }
+
+    final local = parsed.toLocal();
+    final localizations = MaterialLocalizations.of(context);
+    final time = localizations.formatTimeOfDay(
+      TimeOfDay.fromDateTime(local),
+      alwaysUse24HourFormat: MediaQuery.of(context).alwaysUse24HourFormat,
+    );
+    final now = DateTime.now();
+    if (DateUtils.isSameDay(local, now)) {
+      return time;
+    }
+
+    return '${localizations.formatMediumDate(local)} $time';
   }
 
   String _eventPrefix(ChatTimelineItem item, String? sessionUserId) {
