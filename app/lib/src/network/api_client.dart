@@ -148,6 +148,38 @@ class ApiClient {
     return ArtworkDetails.fromJson(jsonPayload as Map<String, dynamic>);
   }
 
+  /// Loads chat timeline and shared artworks for a contact.
+  Future<ChatThread> fetchChatThread({
+    required String token,
+    required String contactUserId,
+  }) async {
+    final payload = await _requestJson(
+      method: 'GET',
+      path: '/api/chats/$contactUserId',
+      token: token,
+    );
+
+    return ChatThread.fromJson(payload as Map<String, dynamic>);
+  }
+
+  /// Sends a direct message to a contact.
+  Future<ChatMessage> sendChatMessage({
+    required String token,
+    required String contactUserId,
+    required String body,
+  }) async {
+    final payload = await _requestJson(
+      method: 'POST',
+      path: '/api/chats/$contactUserId/messages',
+      token: token,
+      jsonBody: <String, dynamic>{
+        'body': body,
+      },
+    );
+
+    return ChatMessage.fromJson(payload as Map<String, dynamic>);
+  }
+
   /// Creates a new artwork with supplied participants.
   Future<void> createArtwork({
     required String token,

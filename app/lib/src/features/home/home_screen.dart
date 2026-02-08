@@ -7,6 +7,7 @@ import '../../core/models.dart';
 import '../../state/app_controller.dart';
 import '../../ui/studio_theme.dart';
 import '../artwork/artwork_screen.dart';
+import '../chat/chat_screen.dart';
 import 'pending_invites_screen.dart';
 
 /// Home screen listing contacts and active artworks.
@@ -84,6 +85,17 @@ class HomeScreen extends StatelessWidget {
         builder: (_) => ArtworkScreen(
           controller: controller,
           artwork: artwork,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openChat(BuildContext context, ContactSummary contact) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ChatScreen(
+          controller: controller,
+          contact: contact,
         ),
       ),
     );
@@ -246,6 +258,7 @@ class HomeScreen extends StatelessWidget {
                                 final contactsPane = _ContactsPane(
                                   controller: controller,
                                   onOpenPendingInvites: () => _openPendingInvites(context),
+                                  onTapContact: (contact) => _openChat(context, contact),
                                 );
                                 final artworksPane = _ArtworksPane(
                                   controller: controller,
@@ -656,10 +669,12 @@ class _ContactsPane extends StatelessWidget {
   const _ContactsPane({
     required this.controller,
     required this.onOpenPendingInvites,
+    required this.onTapContact,
   });
 
   final AppController controller;
   final VoidCallback onOpenPendingInvites;
+  final ValueChanged<ContactSummary> onTapContact;
 
   @override
   Widget build(BuildContext context) {
@@ -691,37 +706,45 @@ class _ContactsPane extends StatelessWidget {
                     separatorBuilder: (context, index) => const SizedBox(height: 6),
                     itemBuilder: (context, index) {
                       final contact = controller.contacts[index];
-                      return Container(
-                        decoration: BoxDecoration(
-                          color: StudioPalette.panelSoft,
-                          border: Border.all(color: StudioPalette.border),
+                      return Material(
+                        color: StudioPalette.panelSoft,
+                        borderRadius: BorderRadius.circular(4),
+                        child: InkWell(
                           borderRadius: BorderRadius.circular(4),
-                        ),
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                        child: Row(
-                          children: <Widget>[
-                            const Icon(Icons.person_outline, size: 17),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: <Widget>[
-                                  Text(
-                                    contact.displayName,
-                                    style: const TextStyle(fontWeight: FontWeight.w600),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    contact.email,
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      color: StudioPalette.textMuted,
-                                    ),
-                                  ),
-                                ],
-                              ),
+                          onTap: () => onTapContact(contact),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              border: Border.all(color: StudioPalette.border),
+                              borderRadius: BorderRadius.circular(4),
                             ),
-                          ],
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                            child: Row(
+                              children: <Widget>[
+                                const Icon(Icons.person_outline, size: 17),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: <Widget>[
+                                      Text(
+                                        contact.displayName,
+                                        style: const TextStyle(fontWeight: FontWeight.w600),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        contact.email,
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          color: StudioPalette.textMuted,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const Icon(Icons.chat_bubble_outline, size: 15),
+                              ],
+                            ),
+                          ),
                         ),
                       );
                     },
@@ -783,6 +806,17 @@ class _ArtworksPane extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final sessionUserId = controller.session?.user.id;
+    final orderedArtworks = controller.artworks.toList()
+      ..sort((left, right) {
+        final leftMyTurn = left.activeParticipantUserId == sessionUserId;
+        final rightMyTurn = right.activeParticipantUserId == sessionUserId;
+        if (leftMyTurn == rightMyTurn) {
+          return 0;
+        }
+        return leftMyTurn ? -1 : 1;
+      });
+
     return StudioPanel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -790,7 +824,7 @@ class _ArtworksPane extends StatelessWidget {
           const StudioSectionLabel('Active Artworks'),
           const SizedBox(height: 10),
           Expanded(
-            child: controller.artworks.isEmpty
+            child: orderedArtworks.isEmpty
                 ? const Center(
                     child: Text(
                       'No artworks yet.',
@@ -798,10 +832,11 @@ class _ArtworksPane extends StatelessWidget {
                     ),
                   )
                 : ListView.separated(
-                    itemCount: controller.artworks.length,
+                    itemCount: orderedArtworks.length,
                     separatorBuilder: (context, index) => const SizedBox(height: 6),
                     itemBuilder: (context, index) {
-                      final artwork = controller.artworks[index];
+                      final artwork = orderedArtworks[index];
+                      final isMyTurn = artwork.activeParticipantUserId == sessionUserId;
                       return Material(
                         color: StudioPalette.panelSoft,
                         borderRadius: BorderRadius.circular(4),
@@ -820,6 +855,23 @@ class _ArtworksPane extends StatelessWidget {
                             ),
                             child: Row(
                               children: <Widget>[
+                                Container(
+                                  width: 8,
+                                  height: 8,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: isMyTurn
+                                        ? StudioPalette.accent
+                                        : Colors.transparent,
+                                    border: Border.all(
+                                      color: isMyTurn
+                                          ? StudioPalette.accent
+                                          : StudioPalette.textMuted,
+                                      width: isMyTurn ? 0 : 1.1,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
                                 Icon(
                                   artwork.mode == ArtworkMode.realTime
                                       ? Icons.bolt

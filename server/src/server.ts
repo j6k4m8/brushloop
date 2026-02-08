@@ -5,6 +5,7 @@ import {
   parseInviteContactRequest,
   parseLoginRequest,
   parseRegisterRequest,
+  parseSendChatMessageRequest,
   parseSubmitTurnRequest,
   parseUpdateArtworkTitleRequest
 } from "../../packages/shared/src/index.ts";
@@ -217,6 +218,104 @@ export function createAppServer(): AppServer {
     }
 
     writeJson(res, 200, db.listContacts(auth.user.id));
+  });
+
+  router.register("GET", "/api/chats/:contactUserId", ({ req, res, params }) => {
+    const auth = requireAuth(req, res, db);
+    if (!auth) {
+      return;
+    }
+
+    const contactUserId = params.contactUserId;
+    if (!contactUserId) {
+      writeJson(res, 400, { error: "contact_user_id_required" });
+      return;
+    }
+
+    if (!db.isContactPair(auth.user.id, contactUserId)) {
+      writeJson(res, 403, { error: "contact_required_for_chat" });
+      return;
+    }
+
+    const contact = db.getUserById(contactUserId);
+    if (!contact) {
+      writeJson(res, 404, { error: "contact_not_found" });
+      return;
+    }
+
+    const artworks = db.listSharedArtworksForUsers(auth.user.id, contactUserId);
+    const messages = db.listDirectMessages(auth.user.id, contactUserId);
+    const artworkCreatedEvents = db.listSharedArtworkCreationEvents(auth.user.id, contactUserId);
+    const turnStartedEvents = db.listSharedTurnStartedEvents(auth.user.id, contactUserId);
+
+    const timeline = [
+      ...messages.map((message) => ({
+        id: `message:${message.id}`,
+        kind: "message",
+        createdAt: message.createdAt,
+        senderUserId: message.senderUserId,
+        recipientUserId: message.recipientUserId,
+        body: message.body
+      })),
+      ...artworkCreatedEvents.map((event) => ({
+        id: `event:artwork_created:${event.id}`,
+        kind: "event",
+        eventType: "artwork_created",
+        createdAt: event.createdAt,
+        artworkId: event.artworkId,
+        artworkTitle: event.artworkTitle,
+        actorUserId: event.actorUserId
+      })),
+      ...turnStartedEvents.map((event) => ({
+        id: `event:turn_started:${event.id}`,
+        kind: "event",
+        eventType: "turn_started",
+        createdAt: event.createdAt,
+        artworkId: event.artworkId,
+        artworkTitle: event.artworkTitle,
+        targetUserId: event.targetUserId
+      }))
+    ].sort((left, right) => {
+      if (left.createdAt === right.createdAt) {
+        return left.id.localeCompare(right.id);
+      }
+      return left.createdAt.localeCompare(right.createdAt);
+    });
+
+    writeJson(res, 200, {
+      contact: {
+        userId: contact.id,
+        displayName: contact.displayName,
+        email: contact.email
+      },
+      artworks,
+      timeline
+    });
+  });
+
+  router.register("POST", "/api/chats/:contactUserId/messages", async ({ req, res, params }) => {
+    const auth = requireAuth(req, res, db);
+    if (!auth) {
+      return;
+    }
+
+    const contactUserId = params.contactUserId;
+    if (!contactUserId) {
+      writeJson(res, 400, { error: "contact_user_id_required" });
+      return;
+    }
+
+    const payload = parseSendChatMessageRequest(await readJsonBody(req));
+
+    try {
+      const message = db.createDirectMessage(auth.user.id, contactUserId, payload.body);
+      writeJson(res, 201, message);
+    } catch (error) {
+      writeJson(res, 400, {
+        error: "failed_to_send_chat_message",
+        message: error instanceof Error ? error.message : "unknown error"
+      });
+    }
   });
 
   router.register("POST", "/api/media/upload", async ({ req, res }) => {

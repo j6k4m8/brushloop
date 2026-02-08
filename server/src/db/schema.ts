@@ -151,6 +151,16 @@ CREATE TABLE IF NOT EXISTS media_assets (
   FOREIGN KEY (owner_user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS chat_messages (
+  id TEXT PRIMARY KEY,
+  sender_user_id TEXT NOT NULL,
+  recipient_user_id TEXT NOT NULL,
+  body TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  FOREIGN KEY (sender_user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (recipient_user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_invitations_email ON contact_invitations(invitee_email);
 CREATE INDEX IF NOT EXISTS idx_participants_artwork ON artwork_participants(artwork_id);
@@ -160,4 +170,8 @@ CREATE INDEX IF NOT EXISTS idx_ops_artwork_lamport ON crdt_operations(artwork_id
 CREATE INDEX IF NOT EXISTS idx_snapshots_artwork_version ON snapshots(artwork_id, version_number);
 CREATE INDEX IF NOT EXISTS idx_notifications_user_delivered ON notifications(user_id, delivered_at);
 CREATE INDEX IF NOT EXISTS idx_media_assets_owner ON media_assets(owner_user_id);
+CREATE INDEX IF NOT EXISTS idx_chat_messages_sender_recipient_created
+  ON chat_messages(sender_user_id, recipient_user_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_chat_messages_recipient_sender_created
+  ON chat_messages(recipient_user_id, sender_user_id, created_at);
 `;

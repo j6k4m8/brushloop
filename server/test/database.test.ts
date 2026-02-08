@@ -145,3 +145,55 @@ test("participants can rename artwork titles", () => {
 
   db.close();
 });
+
+test("chat helpers return direct messages and shared artwork events", () => {
+  const dbPath = makeTmpPath("chat");
+  const db = new BrushloopDatabase(dbPath);
+
+  const userA = db.createUser("chat-a@example.com", "Chat A", hashPassword("password123"));
+  const userB = db.createUser("chat-b@example.com", "Chat B", hashPassword("password123"));
+  db.acceptInvitation(db.createContactInvitation(userA.id, userB.email).id, userB.id);
+
+  const artwork = db.createArtwork({
+    title: "Chat Shared Art",
+    mode: "turn_based",
+    width: 800,
+    height: 600,
+    basePhotoPath: null,
+    createdByUserId: userA.id,
+    participantUserIds: [userA.id, userB.id],
+    turnDurationMinutes: null
+  });
+
+  db.createNotification({
+    userId: userB.id,
+    artworkId: artwork.artwork.id,
+    type: "turn_started",
+    payloadJson: JSON.stringify({ artworkId: artwork.artwork.id, turnNumber: 1 }),
+    channel: "in_app"
+  });
+
+  db.createDirectMessage(userA.id, userB.id, "Ready to draw?");
+  db.createDirectMessage(userB.id, userA.id, "Yep, let us go.");
+
+  const messages = db.listDirectMessages(userA.id, userB.id);
+  assert.equal(messages.length, 2);
+  assert.equal(messages[0]?.senderUserId, userA.id);
+  assert.equal(messages[1]?.senderUserId, userB.id);
+
+  const sharedArtworks = db.listSharedArtworksForUsers(userA.id, userB.id);
+  assert.equal(sharedArtworks.length, 1);
+  assert.equal(sharedArtworks[0]?.id, artwork.artwork.id);
+
+  const creationEvents = db.listSharedArtworkCreationEvents(userA.id, userB.id);
+  assert.equal(creationEvents.length, 1);
+  assert.equal(creationEvents[0]?.artworkId, artwork.artwork.id);
+  assert.equal(creationEvents[0]?.actorUserId, userA.id);
+
+  const turnEvents = db.listSharedTurnStartedEvents(userA.id, userB.id);
+  assert.equal(turnEvents.length, 1);
+  assert.equal(turnEvents[0]?.targetUserId, userB.id);
+  assert.equal(turnEvents[0]?.artworkId, artwork.artwork.id);
+
+  db.close();
+});

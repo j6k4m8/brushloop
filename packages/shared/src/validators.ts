@@ -16,6 +16,7 @@ import type {
   InviteContactRequest,
   LoginRequest,
   RegisterRequest,
+  SendChatMessageRequest,
   SubmitTurnRequest,
   UpdateArtworkTitleRequest
 } from "./rest.ts";
@@ -133,6 +134,17 @@ export function parseUpdateArtworkTitleRequest(input: unknown): UpdateArtworkTit
 
   return {
     title: requireString(input.title, "title")
+  };
+}
+
+/**
+ * Parse and validate direct chat message payload.
+ */
+export function parseSendChatMessageRequest(input: unknown): SendChatMessageRequest {
+  assertObject(input, "send chat message request");
+
+  return {
+    body: requireString(input.body, "body")
   };
 }
 

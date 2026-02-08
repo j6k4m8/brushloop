@@ -45,6 +45,30 @@ export interface ArtworkDetails {
   currentTurn: TurnState | null;
 }
 
+export interface DirectChatMessage {
+  id: Id;
+  senderUserId: Id;
+  recipientUserId: Id;
+  body: string;
+  createdAt: string;
+}
+
+export interface ArtworkCreatedChatEvent {
+  id: Id;
+  artworkId: Id;
+  artworkTitle: string;
+  actorUserId: Id;
+  createdAt: string;
+}
+
+export interface TurnStartedChatEvent {
+  id: Id;
+  artworkId: Id;
+  artworkTitle: string;
+  targetUserId: Id;
+  createdAt: string;
+}
+
 export interface MediaAssetRecord {
   id: Id;
   ownerUserId: Id;
@@ -805,6 +829,186 @@ export class BrushloopDatabase {
          WHERE id = ?`
       )
       .run(finalTitle, now, artworkId);
+  }
+
+  createDirectMessage(senderUserId: Id, recipientUserId: Id, body: string): DirectChatMessage {
+    const finalBody = body.trim();
+    if (finalBody.length === 0) {
+      throw new Error("body must be a non-empty string");
+    }
+
+    if (!this.isContactPair(senderUserId, recipientUserId)) {
+      throw new Error("users must be contacts to exchange messages");
+    }
+
+    const id = randomUUID();
+    const createdAt = nowIso();
+    this.db
+      .prepare(
+        `INSERT INTO chat_messages (
+           id, sender_user_id, recipient_user_id, body, created_at
+         ) VALUES (?, ?, ?, ?, ?)`
+      )
+      .run(id, senderUserId, recipientUserId, finalBody, createdAt);
+
+    return {
+      id,
+      senderUserId,
+      recipientUserId,
+      body: finalBody,
+      createdAt
+    };
+  }
+
+  listDirectMessages(userAId: Id, userBId: Id, limit: number = 200): DirectChatMessage[] {
+    const rows = this.db
+      .prepare(
+        `SELECT id, sender_user_id, recipient_user_id, body, created_at
+         FROM chat_messages
+         WHERE (sender_user_id = ? AND recipient_user_id = ?)
+            OR (sender_user_id = ? AND recipient_user_id = ?)
+         ORDER BY created_at DESC
+         LIMIT ?`
+      )
+      .all(userAId, userBId, userBId, userAId, limit) as Array<{
+      id: string;
+      sender_user_id: string;
+      recipient_user_id: string;
+      body: string;
+      created_at: string;
+    }>;
+
+    return rows
+      .reverse()
+      .map((row) => ({
+        id: row.id,
+        senderUserId: row.sender_user_id,
+        recipientUserId: row.recipient_user_id,
+        body: row.body,
+        createdAt: row.created_at
+      }));
+  }
+
+  listSharedArtworksForUsers(userAId: Id, userBId: Id): ArtworkListItemRow[] {
+    const rows = this.db
+      .prepare(
+        `SELECT a.id, a.title, am.mode
+         FROM artworks a
+         INNER JOIN artwork_modes am ON am.artwork_id = a.id
+         WHERE EXISTS (
+           SELECT 1
+           FROM artwork_participants ap
+           WHERE ap.artwork_id = a.id AND ap.user_id = ?
+         ) AND EXISTS (
+           SELECT 1
+           FROM artwork_participants ap
+           WHERE ap.artwork_id = a.id AND ap.user_id = ?
+         )
+         ORDER BY a.updated_at DESC`
+      )
+      .all(userAId, userBId) as Array<{
+      id: string;
+      title: string;
+      mode: CollaborationMode;
+    }>;
+
+    return rows.map((row) => {
+      const participantRows = this.db
+        .prepare(
+          `SELECT user_id
+           FROM artwork_participants
+           WHERE artwork_id = ?
+           ORDER BY turn_index ASC`
+        )
+        .all(row.id) as Array<{ user_id: string }>;
+
+      const turnRow = this.db
+        .prepare(
+          `SELECT active_participant_user_id
+           FROM turns
+           WHERE artwork_id = ? AND completed_at IS NULL
+           ORDER BY turn_number DESC
+           LIMIT 1`
+        )
+        .get(row.id) as { active_participant_user_id: string } | undefined;
+
+      return {
+        id: row.id,
+        title: row.title,
+        mode: row.mode,
+        participantUserIds: participantRows.map((item) => item.user_id),
+        activeParticipantUserId: turnRow?.active_participant_user_id ?? null
+      };
+    });
+  }
+
+  listSharedArtworkCreationEvents(userAId: Id, userBId: Id): ArtworkCreatedChatEvent[] {
+    const rows = this.db
+      .prepare(
+        `SELECT a.id, a.title, a.created_by_user_id, a.created_at
+         FROM artworks a
+         WHERE EXISTS (
+           SELECT 1
+           FROM artwork_participants ap
+           WHERE ap.artwork_id = a.id AND ap.user_id = ?
+         ) AND EXISTS (
+           SELECT 1
+           FROM artwork_participants ap
+           WHERE ap.artwork_id = a.id AND ap.user_id = ?
+         )
+         ORDER BY a.created_at ASC`
+      )
+      .all(userAId, userBId) as Array<{
+      id: string;
+      title: string;
+      created_by_user_id: string;
+      created_at: string;
+    }>;
+
+    return rows.map((row) => ({
+      id: row.id,
+      artworkId: row.id,
+      artworkTitle: row.title,
+      actorUserId: row.created_by_user_id,
+      createdAt: row.created_at
+    }));
+  }
+
+  listSharedTurnStartedEvents(userAId: Id, userBId: Id): TurnStartedChatEvent[] {
+    const rows = this.db
+      .prepare(
+        `SELECT n.id, n.user_id, n.artwork_id, n.created_at, a.title
+         FROM notifications n
+         INNER JOIN artworks a ON a.id = n.artwork_id
+         WHERE n.type = 'turn_started'
+           AND n.artwork_id IS NOT NULL
+           AND n.user_id IN (?, ?)
+           AND EXISTS (
+             SELECT 1
+             FROM artwork_participants ap
+             WHERE ap.artwork_id = n.artwork_id AND ap.user_id = ?
+           ) AND EXISTS (
+             SELECT 1
+             FROM artwork_participants ap
+             WHERE ap.artwork_id = n.artwork_id AND ap.user_id = ?
+           )
+         ORDER BY n.created_at ASC`
+      )
+      .all(userAId, userBId, userAId, userBId) as Array<{
+      id: string;
+      user_id: string;
+      artwork_id: string;
+      created_at: string;
+      title: string;
+    }>;
+
+    return rows.map((row) => ({
+      id: row.id,
+      artworkId: row.artwork_id,
+      artworkTitle: row.title,
+      targetUserId: row.user_id,
+      createdAt: row.created_at
+    }));
   }
 
   createLayer(artworkId: Id, userId: Id, name?: string): Layer {

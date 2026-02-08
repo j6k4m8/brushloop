@@ -351,6 +351,175 @@ class ArtworkDetails {
   }
 }
 
+/// Single direct chat message record.
+class ChatMessage {
+  /// Creates a direct chat message.
+  const ChatMessage({
+    required this.id,
+    required this.senderUserId,
+    required this.recipientUserId,
+    required this.body,
+    required this.createdAt,
+  });
+
+  /// Unique message id.
+  final String id;
+
+  /// Sender user id.
+  final String senderUserId;
+
+  /// Recipient user id.
+  final String recipientUserId;
+
+  /// Message body text.
+  final String body;
+
+  /// Creation timestamp.
+  final String createdAt;
+
+  /// Decode from JSON.
+  factory ChatMessage.fromJson(Map<String, dynamic> json) {
+    return ChatMessage(
+      id: json['id'] as String,
+      senderUserId: json['senderUserId'] as String,
+      recipientUserId: json['recipientUserId'] as String,
+      body: json['body'] as String,
+      createdAt: json['createdAt'] as String,
+    );
+  }
+}
+
+/// Timeline item kind within chat.
+enum ChatTimelineKind {
+  /// Freeform user message.
+  message,
+
+  /// System/event message.
+  event,
+}
+
+/// Event type shown inline in chat timeline.
+enum ChatTimelineEventType {
+  /// New artwork creation event.
+  artworkCreated,
+
+  /// Turn-start event for turn-based artwork.
+  turnStarted,
+}
+
+/// Unified timeline row used by chat UI.
+class ChatTimelineItem {
+  /// Creates a timeline item.
+  const ChatTimelineItem({
+    required this.id,
+    required this.kind,
+    required this.createdAt,
+    this.senderUserId,
+    this.recipientUserId,
+    this.body,
+    this.eventType,
+    this.artworkId,
+    this.artworkTitle,
+    this.actorUserId,
+    this.targetUserId,
+  });
+
+  /// Row id.
+  final String id;
+
+  /// Item category.
+  final ChatTimelineKind kind;
+
+  /// Creation timestamp.
+  final String createdAt;
+
+  /// Sender id for message rows.
+  final String? senderUserId;
+
+  /// Recipient id for message rows.
+  final String? recipientUserId;
+
+  /// Message body for message rows.
+  final String? body;
+
+  /// Event subtype for event rows.
+  final ChatTimelineEventType? eventType;
+
+  /// Related artwork id for event rows.
+  final String? artworkId;
+
+  /// Related artwork title for event rows.
+  final String? artworkTitle;
+
+  /// User id that caused the event when relevant.
+  final String? actorUserId;
+
+  /// User id targeted by the event when relevant.
+  final String? targetUserId;
+
+  /// Decode from JSON.
+  factory ChatTimelineItem.fromJson(Map<String, dynamic> json) {
+    final kindRaw = json['kind'] as String;
+    final kind = kindRaw == 'message'
+        ? ChatTimelineKind.message
+        : ChatTimelineKind.event;
+
+    ChatTimelineEventType? eventType;
+    final eventTypeRaw = json['eventType'] as String?;
+    if (eventTypeRaw == 'artwork_created') {
+      eventType = ChatTimelineEventType.artworkCreated;
+    } else if (eventTypeRaw == 'turn_started') {
+      eventType = ChatTimelineEventType.turnStarted;
+    }
+
+    return ChatTimelineItem(
+      id: json['id'] as String,
+      kind: kind,
+      createdAt: json['createdAt'] as String,
+      senderUserId: json['senderUserId'] as String?,
+      recipientUserId: json['recipientUserId'] as String?,
+      body: json['body'] as String?,
+      eventType: eventType,
+      artworkId: json['artworkId'] as String?,
+      artworkTitle: json['artworkTitle'] as String?,
+      actorUserId: json['actorUserId'] as String?,
+      targetUserId: json['targetUserId'] as String?,
+    );
+  }
+}
+
+/// Chat payload for a single contact thread.
+class ChatThread {
+  /// Creates a chat thread payload.
+  const ChatThread({
+    required this.contact,
+    required this.artworks,
+    required this.timeline,
+  });
+
+  /// Contact currently being chatted with.
+  final ContactSummary contact;
+
+  /// Shared artworks between the two users.
+  final List<ArtworkSummary> artworks;
+
+  /// Chronological chat + event timeline.
+  final List<ChatTimelineItem> timeline;
+
+  /// Decode from JSON.
+  factory ChatThread.fromJson(Map<String, dynamic> json) {
+    return ChatThread(
+      contact: ContactSummary.fromJson(json['contact'] as Map<String, dynamic>),
+      artworks: (json['artworks'] as List<dynamic>)
+          .map((value) => ArtworkSummary.fromJson(value as Map<String, dynamic>))
+          .toList(),
+      timeline: (json['timeline'] as List<dynamic>)
+          .map((value) => ChatTimelineItem.fromJson(value as Map<String, dynamic>))
+          .toList(),
+    );
+  }
+}
+
 /// Stored media metadata returned after upload.
 class UploadedMedia {
   /// Creates an uploaded media payload.

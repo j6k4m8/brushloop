@@ -5,6 +5,7 @@ import {
   parseCollaborationClientMessage,
   parseCreateArtworkRequest,
   parseLoginRequest,
+  parseSendChatMessageRequest,
   parseUpdateArtworkTitleRequest,
   parseRegisterRequest
 } from "../src/index.ts";
@@ -84,4 +85,12 @@ test("parseUpdateArtworkTitleRequest parses title payload", () => {
   });
 
   assert.equal(parsed.title, "New Artwork Title");
+});
+
+test("parseSendChatMessageRequest parses body payload", () => {
+  const parsed = parseSendChatMessageRequest({
+    body: "Hey, let us sketch tonight."
+  });
+
+  assert.equal(parsed.body, "Hey, let us sketch tonight.");
 });

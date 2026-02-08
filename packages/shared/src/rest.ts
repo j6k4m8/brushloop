@@ -48,6 +48,10 @@ export interface UpdateArtworkTitleRequest {
   title: string;
 }
 
+export interface SendChatMessageRequest {
+  body: string;
+}
+
 export interface ArtworkListItem {
   id: Id;
   title: string;

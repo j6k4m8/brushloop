@@ -254,6 +254,36 @@ class AppController extends ChangeNotifier {
     return _apiClient.fetchArtworkDetails(token: token, artworkId: artworkId);
   }
 
+  /// Loads direct chat context and timeline for one contact.
+  Future<ChatThread> loadChatThread(String contactUserId) async {
+    final token = _session?.token;
+    if (token == null) {
+      throw const ApiException(statusCode: 401, message: 'Not authenticated');
+    }
+
+    return _apiClient.fetchChatThread(
+      token: token,
+      contactUserId: contactUserId,
+    );
+  }
+
+  /// Sends a direct message to one contact.
+  Future<ChatMessage> sendChatMessage({
+    required String contactUserId,
+    required String body,
+  }) async {
+    final token = _session?.token;
+    if (token == null) {
+      throw const ApiException(statusCode: 401, message: 'Not authenticated');
+    }
+
+    return _apiClient.sendChatMessage(
+      token: token,
+      contactUserId: contactUserId,
+      body: body,
+    );
+  }
+
   Future<void> _loadHomeData() async {
     final token = _session?.token;
     if (token == null) {
