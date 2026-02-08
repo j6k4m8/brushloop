@@ -14,3 +14,4 @@
 - [x] Task 12: Allow solo artwork creation without requiring invites/contacts.
 - [x] Task 13: Convert eraser to true brush-style erase and keep undo/redo behavior correct.
 - [x] Task 14: Add pending invites UI and accept/deny flow from buddy list.
+- [T] Task 15: Fix eraser rendering so it clears pixels reliably without black/off-white artifacts.

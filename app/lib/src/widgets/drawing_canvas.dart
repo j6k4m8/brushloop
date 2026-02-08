@@ -124,6 +124,10 @@ class _DrawingPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    // Draw strokes in an isolated layer so erase blend modes punch through
+    // reliably across platforms and reveal content below the canvas.
+    canvas.saveLayer(Offset.zero & size, Paint());
+
     final sorted = <CanvasStroke>[...strokes]
       ..sort(
         (a, b) => (layerOrder[a.layerId] ?? 0).compareTo(layerOrder[b.layerId] ?? 0),
@@ -139,6 +143,8 @@ class _DrawingPainter extends CustomPainter {
     if (activeStroke case final stroke?) {
       _paintStroke(canvas, stroke);
     }
+
+    canvas.restore();
   }
 
   @override
@@ -155,12 +161,13 @@ class _DrawingPainter extends CustomPainter {
     }
 
     final paint = Paint()
+      ..isAntiAlias = true
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round
       ..strokeWidth = stroke.size
       ..blendMode = stroke.isEraser ? BlendMode.clear : BlendMode.srcOver
-      ..color = stroke.color;
+      ..color = stroke.isEraser ? const Color(0xFFFFFFFF) : stroke.color;
 
     if (stroke.points.length == 1) {
       final center = stroke.points.single.toOffset();
