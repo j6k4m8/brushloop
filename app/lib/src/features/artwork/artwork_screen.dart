@@ -1,7 +1,10 @@
 import 'dart:async';
 import 'dart:math';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 
 import '../../core/app_config.dart';
 import '../../core/models.dart';
@@ -43,6 +46,7 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
   double _brushSize = 8;
   Color _brushColor = const Color(0xFF111827);
   bool _showMobileInspectorPane = false;
+  final GlobalKey _canvasBoundaryKey = GlobalKey();
 
   CollaborationSocket? _socket;
   StreamSubscription<Map<String, dynamic>>? _messageSubscription;
@@ -131,6 +135,11 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
   void _onPanStart(DragStartDetails details) {
     final layerId = _selectedLayerId;
     if (!_canEdit || layerId == null) {
+      return;
+    }
+
+    if (_tool == _EditorTool.eyedropper) {
+      unawaited(_sampleColorAt(details.localPosition));
       return;
     }
 
@@ -762,6 +771,13 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
               active: _tool == _EditorTool.eraser,
               onPressed: () => setState(() => _tool = _EditorTool.eraser),
             ),
+            const SizedBox(width: 6),
+            StudioIconButton(
+              icon: Icons.colorize_outlined,
+              tooltip: 'Eyedropper',
+              active: _tool == _EditorTool.eyedropper,
+              onPressed: () => setState(() => _tool = _EditorTool.eyedropper),
+            ),
             const SizedBox(width: 10),
             SizedBox(
               width: 180,
@@ -863,7 +879,7 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
   }
 
   Future<void> _openColorPicker() async {
-    var workingColor = HSVColor.fromColor(_brushColor);
+    var workingColor = _brushColor;
     var applied = false;
 
     await showDialog<void>(
@@ -871,7 +887,6 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
-            final preview = workingColor.toColor();
             return Dialog(
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 420),
@@ -886,54 +901,16 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
                         style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
                       ),
                       const SizedBox(height: 10),
-                      Container(
-                        height: 36,
-                        decoration: BoxDecoration(
-                          color: preview,
-                          borderRadius: BorderRadius.circular(4),
-                          border: Border.all(color: StudioPalette.border),
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        'Hue ${workingColor.hue.round()}',
-                        style: const TextStyle(fontSize: 12, color: StudioPalette.textMuted),
-                      ),
-                      Slider(
-                        value: workingColor.hue,
-                        min: 0,
-                        max: 360,
-                        onChanged: (value) {
+                      ColorPicker(
+                        pickerColor: workingColor,
+                        enableAlpha: false,
+                        portraitOnly: true,
+                        labelTypes: const <ColorLabelType>[],
+                        displayThumbColor: true,
+                        pickerAreaHeightPercent: 0.72,
+                        onColorChanged: (color) {
                           setDialogState(() {
-                            workingColor = workingColor.withHue(value);
-                          });
-                        },
-                      ),
-                      Text(
-                        'Saturation ${(workingColor.saturation * 100).round()}%',
-                        style: const TextStyle(fontSize: 12, color: StudioPalette.textMuted),
-                      ),
-                      Slider(
-                        value: workingColor.saturation,
-                        min: 0,
-                        max: 1,
-                        onChanged: (value) {
-                          setDialogState(() {
-                            workingColor = workingColor.withSaturation(value);
-                          });
-                        },
-                      ),
-                      Text(
-                        'Value ${(workingColor.value * 100).round()}%',
-                        style: const TextStyle(fontSize: 12, color: StudioPalette.textMuted),
-                      ),
-                      Slider(
-                        value: workingColor.value,
-                        min: 0,
-                        max: 1,
-                        onChanged: (value) {
-                          setDialogState(() {
-                            workingColor = workingColor.withValue(value);
+                            workingColor = color;
                           });
                         },
                       ),
@@ -967,8 +944,60 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
 
     if (applied) {
       setState(() {
-        _brushColor = workingColor.toColor();
+        _brushColor = workingColor;
+        if (_tool == _EditorTool.eyedropper) {
+          _tool = _EditorTool.brush;
+        }
       });
+    }
+  }
+
+  Future<void> _sampleColorAt(Offset localPosition) async {
+    final renderObject = _canvasBoundaryKey.currentContext?.findRenderObject();
+    if (renderObject is! RenderRepaintBoundary) {
+      return;
+    }
+
+    try {
+      final image = await renderObject.toImage(pixelRatio: 1);
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
+      if (byteData == null) {
+        image.dispose();
+        return;
+      }
+
+      final width = image.width;
+      final height = image.height;
+      final x = localPosition.dx.round().clamp(0, width - 1);
+      final y = localPosition.dy.round().clamp(0, height - 1);
+      final byteOffset = ((y * width) + x) * 4;
+      if (byteOffset + 3 >= byteData.lengthInBytes) {
+        image.dispose();
+        return;
+      }
+
+      final r = byteData.getUint8(byteOffset);
+      final g = byteData.getUint8(byteOffset + 1);
+      final b = byteData.getUint8(byteOffset + 2);
+      final a = byteData.getUint8(byteOffset + 3);
+      image.dispose();
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _brushColor = Color.fromARGB(a, r, g, b);
+        _tool = _EditorTool.brush;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Eyedropper unavailable: $error')),
+      );
     }
   }
 
@@ -1027,36 +1056,39 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
                   border: Border.all(color: const Color(0xFFCCCCCC)),
                   borderRadius: BorderRadius.circular(4),
                 ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(3),
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: <Widget>[
-                      if (details.artwork.basePhotoPath case final photoPath?)
-                        IgnorePointer(
-                          child: Image.network(
-                            _resolveMediaUrl(photoPath),
-                            fit: BoxFit.cover,
-                            headers: <String, String>{
-                              if (widget.controller.session case final session?)
-                                'Authorization': 'Bearer ${session.token}',
-                            },
-                            errorBuilder: (context, error, stackTrace) {
-                              return const SizedBox.shrink();
-                            },
+                child: RepaintBoundary(
+                  key: _canvasBoundaryKey,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(3),
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: <Widget>[
+                        if (details.artwork.basePhotoPath case final photoPath?)
+                          IgnorePointer(
+                            child: Image.network(
+                              _resolveMediaUrl(photoPath),
+                              fit: BoxFit.cover,
+                              headers: <String, String>{
+                                if (widget.controller.session case final session?)
+                                  'Authorization': 'Bearer ${session.token}',
+                              },
+                              errorBuilder: (context, error, stackTrace) {
+                                return const SizedBox.shrink();
+                              },
+                            ),
                           ),
+                        DrawingCanvas(
+                          strokes: _strokes,
+                          activeStroke: _activeStroke,
+                          visibleLayerIds: visibleLayerIds,
+                          layerOrder: layerOrder,
+                          canEdit: _canEdit,
+                          onPanStart: _onPanStart,
+                          onPanUpdate: _onPanUpdate,
+                          onPanEnd: _onPanEnd,
                         ),
-                      DrawingCanvas(
-                        strokes: _strokes,
-                        activeStroke: _activeStroke,
-                        visibleLayerIds: visibleLayerIds,
-                        layerOrder: layerOrder,
-                        canEdit: _canEdit,
-                        onPanStart: _onPanStart,
-                        onPanUpdate: _onPanUpdate,
-                        onPanEnd: _onPanEnd,
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -1209,4 +1241,5 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
 enum _EditorTool {
   brush,
   eraser,
+  eyedropper,
 }
