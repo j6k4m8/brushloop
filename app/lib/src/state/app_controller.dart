@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import '../core/models.dart';
 import '../network/api_client.dart';
+import 'session_storage.dart';
 
 /// Local base-photo payload selected before artwork creation.
 class ArtworkBasePhotoInput {
@@ -25,11 +28,18 @@ class ArtworkBasePhotoInput {
 /// Mutable app state and use-case orchestration for the BrushLoop client.
 class AppController extends ChangeNotifier {
   /// Creates an app controller.
-  AppController({required ApiClient apiClient}) : _apiClient = apiClient;
+  AppController({
+    required ApiClient apiClient,
+    SessionStorage? sessionStorage,
+  }) : _apiClient = apiClient,
+       _sessionStorage = sessionStorage ?? SharedPreferencesSessionStorage();
 
   final ApiClient _apiClient;
+  final SessionStorage _sessionStorage;
 
   SessionState? _session;
+  bool _isRestoringSession = false;
+  bool _didInitialize = false;
   bool _isBusy = false;
   String? _errorMessage;
   List<ContactSummary> _contacts = const <ContactSummary>[];
@@ -41,6 +51,9 @@ class AppController extends ChangeNotifier {
 
   /// True while a network operation is running.
   bool get isBusy => _isBusy;
+
+  /// True while startup session restore is in progress.
+  bool get isRestoringSession => _isRestoringSession;
 
   /// Last user-facing error.
   String? get errorMessage => _errorMessage;
@@ -54,10 +67,52 @@ class AppController extends ChangeNotifier {
   /// Loaded artwork summaries.
   List<ArtworkSummary> get artworks => _artworks;
 
+  /// Restores persisted session and preloads initial home data.
+  Future<void> initialize() async {
+    if (_didInitialize) {
+      return;
+    }
+    _didInitialize = true;
+
+    _isRestoringSession = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final persisted = await _sessionStorage.readSession();
+      if (persisted == null) {
+        return;
+      }
+
+      _session = persisted;
+      final refreshedUser = await _apiClient.fetchCurrentUser(token: persisted.token);
+      _session = SessionState(
+        token: persisted.token,
+        user: refreshedUser,
+        expiresAt: persisted.expiresAt,
+      );
+      await _sessionStorage.writeSession(_session!);
+
+      await _loadHomeData();
+    } catch (error) {
+      if (error is ApiException && error.statusCode == 401) {
+        _clearSessionState(notify: false);
+        await _sessionStorage.clearSession();
+        return;
+      }
+
+      _errorMessage = _toMessage(error);
+    } finally {
+      _isRestoringSession = false;
+      notifyListeners();
+    }
+  }
+
   /// Signs in with email and password and refreshes home data.
   Future<void> login({required String email, required String password}) async {
     await _runBusy(() async {
       _session = await _apiClient.login(email: email, password: password);
+      await _sessionStorage.writeSession(_session!);
       await _loadHomeData();
     });
   }
@@ -74,18 +129,15 @@ class AppController extends ChangeNotifier {
         password: password,
         displayName: displayName,
       );
+      await _sessionStorage.writeSession(_session!);
       await _loadHomeData();
     });
   }
 
   /// Signs out locally.
   void logout() {
-    _session = null;
-    _contacts = const <ContactSummary>[];
-    _pendingInvitations = const <PendingInvitation>[];
-    _artworks = const <ArtworkSummary>[];
-    _errorMessage = null;
-    notifyListeners();
+    _clearSessionState(notify: true);
+    unawaited(_sessionStorage.clearSession());
   }
 
   /// Updates the current user's display name.
@@ -114,6 +166,7 @@ class AppController extends ChangeNotifier {
         user: updatedUser,
         expiresAt: session.expiresAt,
       );
+      await _sessionStorage.writeSession(_session!);
       await _loadHomeData();
     });
   }
@@ -344,11 +397,28 @@ class AppController extends ChangeNotifier {
     try {
       await action();
     } catch (error) {
-      _errorMessage = _toMessage(error);
+      if (error is ApiException && error.statusCode == 401) {
+        _clearSessionState(notify: false);
+        unawaited(_sessionStorage.clearSession());
+        _errorMessage = 'Session expired. Please sign in again.';
+      } else {
+        _errorMessage = _toMessage(error);
+      }
       notifyListeners();
       rethrow;
     } finally {
       _isBusy = false;
+      notifyListeners();
+    }
+  }
+
+  void _clearSessionState({required bool notify}) {
+    _session = null;
+    _contacts = const <ContactSummary>[];
+    _pendingInvitations = const <PendingInvitation>[];
+    _artworks = const <ArtworkSummary>[];
+    _errorMessage = null;
+    if (notify) {
       notifyListeners();
     }
   }

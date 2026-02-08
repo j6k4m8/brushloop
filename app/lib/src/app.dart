@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'core/app_config.dart';
@@ -24,6 +26,7 @@ class _BrushLoopAppState extends State<BrushLoopApp> {
     super.initState();
     final apiClient = ApiClient(baseUrl: AppConfig.apiBaseUrl);
     _controller = AppController(apiClient: apiClient);
+    unawaited(_controller.initialize());
   }
 
   @override
@@ -41,6 +44,12 @@ class _BrushLoopAppState extends State<BrushLoopApp> {
       home: AnimatedBuilder(
         animation: _controller,
         builder: (context, _) {
+          if (_controller.isRestoringSession) {
+            return const Scaffold(
+              body: Center(child: CircularProgressIndicator()),
+            );
+          }
+
           if (_controller.session == null) {
             return AuthScreen(controller: _controller);
           }

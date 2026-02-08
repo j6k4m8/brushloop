@@ -24,6 +24,15 @@ class SessionUser {
       displayName: json['displayName'] as String,
     );
   }
+
+  /// Encode to JSON.
+  Map<String, dynamic> toJson() {
+    return <String, dynamic>{
+      'id': id,
+      'email': email,
+      'displayName': displayName,
+    };
+  }
 }
 
 /// Session data returned after login or registration.
@@ -51,6 +60,15 @@ class SessionState {
       user: SessionUser.fromJson(json['user'] as Map<String, dynamic>),
       expiresAt: json['expiresAt'] as String,
     );
+  }
+
+  /// Encode to JSON.
+  Map<String, dynamic> toJson() {
+    return <String, dynamic>{
+      'token': token,
+      'user': user.toJson(),
+      'expiresAt': expiresAt,
+    };
   }
 }
 

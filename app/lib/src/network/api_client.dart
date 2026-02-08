@@ -51,6 +51,16 @@ class ApiClient {
     return SessionState.fromJson(jsonPayload);
   }
 
+  /// Loads the currently authenticated user profile for an existing token.
+  Future<SessionUser> fetchCurrentUser({required String token}) async {
+    final payload = await _requestJson(
+      method: 'GET',
+      path: '/api/auth/me',
+      token: token,
+    );
+    return SessionUser.fromJson(payload as Map<String, dynamic>);
+  }
+
   /// Updates current user profile display name.
   Future<SessionUser> updateProfileDisplayName({
     required String token,
