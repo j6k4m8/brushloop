@@ -324,7 +324,7 @@ class _CreateArtworkDialogState extends State<_CreateArtworkDialog> {
   final ImagePicker _picker = ImagePicker();
   final bool _cameraSupported = supportsCameraCapture();
 
-  ContactSummary? _selectedContact;
+  String? _selectedContactUserId;
   bool _soloArtwork = false;
   ArtworkMode _mode = ArtworkMode.realTime;
   _InitialTurnChoice _firstTurnChoice = _InitialTurnChoice.me;
@@ -335,12 +335,41 @@ class _CreateArtworkDialogState extends State<_CreateArtworkDialog> {
   @override
   void initState() {
     super.initState();
-    if (widget.controller.contacts.isEmpty) {
+    final contacts = _contactOptions();
+    if (contacts.isEmpty) {
       _soloArtwork = true;
       return;
     }
 
-    _selectedContact = widget.controller.contacts.first;
+    _selectedContactUserId = contacts.first.userId;
+  }
+
+  List<ContactSummary> _contactOptions() {
+    final byUserId = <String, ContactSummary>{};
+    for (final contact in widget.controller.contacts) {
+      byUserId[contact.userId] = contact;
+    }
+
+    return byUserId.values.toList(growable: false);
+  }
+
+  ContactSummary? _resolveSelectedContact(List<ContactSummary> contacts) {
+    if (contacts.isEmpty) {
+      return null;
+    }
+
+    final selectedId = _selectedContactUserId;
+    if (selectedId == null) {
+      return contacts.first;
+    }
+
+    for (final contact in contacts) {
+      if (contact.userId == selectedId) {
+        return contact;
+      }
+    }
+
+    return contacts.first;
   }
 
   Future<void> _pickPhoto(ImageSource source) async {
@@ -394,18 +423,19 @@ class _CreateArtworkDialogState extends State<_CreateArtworkDialog> {
 
     try {
       final basePhoto = _photo;
+      final selectedContact = _soloArtwork ? null : _resolveSelectedContact(_contactOptions());
       final sessionUser = widget.controller.session?.user;
       final firstTurnUserId = _mode != ArtworkMode.turnBased
           ? null
           : (_soloArtwork ||
-                  _selectedContact == null ||
+                  selectedContact == null ||
                   _firstTurnChoice == _InitialTurnChoice.me)
               ? sessionUser?.id
-              : _selectedContact!.userId;
+              : selectedContact.userId;
 
       await widget.controller.createArtwork(
         mode: _mode,
-        collaborator: _soloArtwork ? null : _selectedContact,
+        collaborator: selectedContact,
         firstTurnUserId: firstTurnUserId,
         basePhoto: basePhoto == null
             ? null
@@ -437,6 +467,9 @@ class _CreateArtworkDialogState extends State<_CreateArtworkDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final contacts = _contactOptions();
+    final selectedContact = _resolveSelectedContact(contacts);
+
     return Dialog(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 520),
@@ -452,7 +485,7 @@ class _CreateArtworkDialogState extends State<_CreateArtworkDialog> {
                   style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 10),
-                if (widget.controller.contacts.isNotEmpty)
+                if (contacts.isNotEmpty)
                   CheckboxListTile(
                     value: _soloArtwork,
                     contentPadding: EdgeInsets.zero,
@@ -468,21 +501,21 @@ class _CreateArtworkDialogState extends State<_CreateArtworkDialog> {
                             setState(() {
                               _soloArtwork = value ?? false;
                               if (!_soloArtwork &&
-                                  _selectedContact == null &&
-                                  widget.controller.contacts.isNotEmpty) {
-                                _selectedContact = widget.controller.contacts.first;
+                                  _selectedContactUserId == null &&
+                                  contacts.isNotEmpty) {
+                                _selectedContactUserId = contacts.first.userId;
                               }
                             });
                           },
                   ),
-                if (!_soloArtwork && widget.controller.contacts.isNotEmpty) ...<Widget>[
-                  DropdownButtonFormField<ContactSummary>(
-                    initialValue: _selectedContact,
+                if (!_soloArtwork && contacts.isNotEmpty) ...<Widget>[
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedContact?.userId,
                     decoration: const InputDecoration(labelText: 'Contact'),
-                    items: widget.controller.contacts
+                    items: contacts
                         .map(
-                          (contact) => DropdownMenuItem<ContactSummary>(
-                            value: contact,
+                          (contact) => DropdownMenuItem<String>(
+                            value: contact.userId,
                             child: Text(contact.displayName),
                           ),
                         )
@@ -494,7 +527,7 @@ class _CreateArtworkDialogState extends State<_CreateArtworkDialog> {
                               return;
                             }
                             setState(() {
-                              _selectedContact = value;
+                              _selectedContactUserId = value;
                             });
                           },
                   ),
@@ -526,7 +559,7 @@ class _CreateArtworkDialogState extends State<_CreateArtworkDialog> {
                 ),
                 if (_mode == ArtworkMode.turnBased) ...<Widget>[
                   const SizedBox(height: 10),
-                  _soloArtwork || _selectedContact == null
+                  _soloArtwork || selectedContact == null
                       ? const Align(
                           alignment: Alignment.centerLeft,
                           child: Text(
@@ -547,7 +580,7 @@ class _CreateArtworkDialogState extends State<_CreateArtworkDialog> {
                             ),
                             DropdownMenuItem<_InitialTurnChoice>(
                               value: _InitialTurnChoice.contact,
-                              child: Text(_selectedContact!.displayName),
+                              child: Text(selectedContact.displayName),
                             ),
                           ],
                           onChanged: _isSubmitting
