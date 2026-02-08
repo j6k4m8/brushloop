@@ -126,6 +126,7 @@ class _DrawingPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    final bounds = Offset.zero & size;
     final layerIds = visibleLayerIds.toList()
       ..sort((a, b) => (layerOrder[a] ?? 0).compareTo(layerOrder[b] ?? 0));
 
@@ -133,7 +134,15 @@ class _DrawingPainter extends CustomPainter {
       // Draw each layer into an offscreen picture so erasing cannot modify
       // already-composited lower layers.
       final recorder = PictureRecorder();
-      final layerCanvas = Canvas(recorder);
+      final layerCanvas = Canvas(recorder, bounds);
+      layerCanvas
+        ..clipRect(bounds)
+        ..drawRect(
+          bounds,
+          Paint()
+            ..blendMode = BlendMode.src
+            ..color = const Color(0x00000000),
+        );
 
       for (final stroke in strokes) {
         if (stroke.layerId != layerId) {
@@ -150,7 +159,6 @@ class _DrawingPainter extends CustomPainter {
 
       final picture = recorder.endRecording();
       canvas.drawPicture(picture);
-      picture.dispose();
     }
   }
 
@@ -173,7 +181,7 @@ class _DrawingPainter extends CustomPainter {
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round
       ..strokeWidth = stroke.size
-      ..blendMode = stroke.isEraser ? BlendMode.clear : BlendMode.srcOver
+      ..blendMode = stroke.isEraser ? BlendMode.dstOut : BlendMode.srcOver
       ..color = stroke.isEraser ? const Color(0xFFFFFFFF) : stroke.color;
 
     if (stroke.points.length == 1) {

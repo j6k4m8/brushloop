@@ -17,3 +17,4 @@
 - [x] Task 15: Fix eraser rendering so it clears pixels reliably without black/off-white artifacts.
 - [x] Task 16: Add multi-layer creation and make eraser compositing correct per layer.
 - [x] Task 17: Isolate per-layer rendering so eraser cannot affect layers below.
+- [T] Task 18: Fix eraser black/flicker artifacts while preserving per-layer isolation.
