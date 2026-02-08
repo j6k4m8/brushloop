@@ -101,10 +101,10 @@ class AppController extends ChangeNotifier {
     });
   }
 
-  /// Creates a starter artwork with a selected contact.
-  Future<void> createArtworkWithContact({
-    required ContactSummary contact,
+  /// Creates a starter artwork with optional collaborator contact.
+  Future<void> createArtwork({
     required ArtworkMode mode,
+    ContactSummary? collaborator,
     ArtworkBasePhotoInput? basePhoto,
   }) async {
     final token = _session?.token;
@@ -131,7 +131,9 @@ class AppController extends ChangeNotifier {
         token: token,
         title: '$modeLabel Sketch $timestamp',
         mode: mode,
-        participantUserIds: <String>[contact.userId],
+        participantUserIds: collaborator == null
+            ? const <String>[]
+            : <String>[collaborator.userId],
         width: 1400,
         height: 1000,
         basePhotoPath: basePhotoPath,

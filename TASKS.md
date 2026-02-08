@@ -11,3 +11,4 @@
 - [x] Task 9: Implement production-grade media storage abstraction, metadata persistence, and upload/download API.
 - [x] Task 10: Implement real Flutter camera/gallery flows with media upload wired into artwork creation.
 - [x] Task 11: Fix platform network permissions/config so sign-in works on macOS/iOS/Android.
+- [T] Task 12: Allow solo artwork creation without requiring invites/contacts.

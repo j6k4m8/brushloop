@@ -291,11 +291,6 @@ export function createAppServer(): AppServer {
     participantSet.add(auth.user.id);
     const participantUserIds = [...participantSet];
 
-    if (participantUserIds.length < 2) {
-      writeJson(res, 400, { error: "an_artwork_requires_at_least_two_participants" });
-      return;
-    }
-
     for (const participantId of participantUserIds) {
       const participant = db.getUserById(participantId);
       if (!participant) {

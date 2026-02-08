@@ -52,15 +52,6 @@ class HomeScreen extends StatelessWidget {
   }
 
   Future<void> _openCreateArtworkDialog(BuildContext context) async {
-    if (controller.contacts.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Add at least one contact before creating artworks.'),
-        ),
-      );
-      return;
-    }
-
     await showDialog<void>(
       context: context,
       builder: (_) => _CreateArtworkDialog(controller: controller),
@@ -165,7 +156,8 @@ class _CreateArtworkDialog extends StatefulWidget {
 class _CreateArtworkDialogState extends State<_CreateArtworkDialog> {
   final ImagePicker _picker = ImagePicker();
 
-  late ContactSummary _selectedContact;
+  ContactSummary? _selectedContact;
+  bool _soloArtwork = false;
   ArtworkMode _mode = ArtworkMode.realTime;
   _PickedArtworkPhoto? _photo;
   bool _isPickingPhoto = false;
@@ -174,6 +166,11 @@ class _CreateArtworkDialogState extends State<_CreateArtworkDialog> {
   @override
   void initState() {
     super.initState();
+    if (widget.controller.contacts.isEmpty) {
+      _soloArtwork = true;
+      return;
+    }
+
     _selectedContact = widget.controller.contacts.first;
   }
 
@@ -229,9 +226,9 @@ class _CreateArtworkDialogState extends State<_CreateArtworkDialog> {
 
     try {
       final basePhoto = _photo;
-      await widget.controller.createArtworkWithContact(
-        contact: _selectedContact,
+      await widget.controller.createArtwork(
         mode: _mode,
+        collaborator: _soloArtwork ? null : _selectedContact,
         basePhoto: basePhoto == null
             ? null
             : ArtworkBasePhotoInput(
@@ -268,29 +265,45 @@ class _CreateArtworkDialogState extends State<_CreateArtworkDialog> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            DropdownButtonFormField<ContactSummary>(
-              initialValue: _selectedContact,
-              decoration: const InputDecoration(labelText: 'Contact'),
-              items: widget.controller.contacts
-                  .map(
-                    (contact) => DropdownMenuItem<ContactSummary>(
-                      value: contact,
-                      child: Text(contact.displayName),
-                    ),
-                  )
-                  .toList(),
-              onChanged: _isSubmitting
-                  ? null
-                  : (value) {
-                      if (value == null) {
-                        return;
-                      }
-                      setState(() {
-                        _selectedContact = value;
-                      });
-                    },
-            ),
-            const SizedBox(height: 12),
+            if (widget.controller.contacts.isNotEmpty)
+              SwitchListTile.adaptive(
+                value: _soloArtwork,
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Solo Artwork'),
+                subtitle: const Text('Create this artwork just for yourself'),
+                onChanged: _isSubmitting
+                    ? null
+                    : (value) {
+                        setState(() {
+                          _soloArtwork = value;
+                        });
+                      },
+              ),
+            if (!_soloArtwork && widget.controller.contacts.isNotEmpty) ...<Widget>[
+              DropdownButtonFormField<ContactSummary>(
+                initialValue: _selectedContact,
+                decoration: const InputDecoration(labelText: 'Contact'),
+                items: widget.controller.contacts
+                    .map(
+                      (contact) => DropdownMenuItem<ContactSummary>(
+                        value: contact,
+                        child: Text(contact.displayName),
+                      ),
+                    )
+                    .toList(),
+                onChanged: _isSubmitting
+                    ? null
+                    : (value) {
+                        if (value == null) {
+                          return;
+                        }
+                        setState(() {
+                          _selectedContact = value;
+                        });
+                      },
+              ),
+              const SizedBox(height: 12),
+            ],
             DropdownButtonFormField<ArtworkMode>(
               initialValue: _mode,
               decoration: const InputDecoration(labelText: 'Mode'),

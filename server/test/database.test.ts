@@ -52,3 +52,27 @@ test("turn submission advances round robin", () => {
 
   db.close();
 });
+
+test("database allows creating a solo artwork", () => {
+  const dbPath = makeTmpPath("solo");
+  const db = new BrushloopDatabase(dbPath);
+
+  const user = db.createUser("solo@example.com", "Solo", hashPassword("password123"));
+
+  const details = db.createArtwork({
+    title: "Solo Art",
+    mode: "real_time",
+    width: 800,
+    height: 600,
+    basePhotoPath: null,
+    createdByUserId: user.id,
+    participantUserIds: [user.id],
+    turnDurationMinutes: null
+  });
+
+  assert.equal(details.participants.length, 1);
+  assert.equal(details.participants[0]?.userId, user.id);
+  assert.equal(details.artwork.mode, "real_time");
+
+  db.close();
+});
