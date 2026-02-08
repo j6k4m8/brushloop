@@ -8,6 +8,7 @@ import '../../state/app_controller.dart';
 import '../../ui/studio_theme.dart';
 import '../artwork/artwork_screen.dart';
 import '../chat/chat_screen.dart';
+import '../settings/settings_screen.dart';
 import 'pending_invites_screen.dart';
 
 /// Home screen listing contacts and active artworks.
@@ -197,6 +198,14 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
+  Future<void> _openSettings(BuildContext context) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => SettingsScreen(controller: controller),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
@@ -227,6 +236,12 @@ class HomeScreen extends StatelessWidget {
                             ),
                           ),
                           StudioIconButton(
+                            icon: Icons.settings_outlined,
+                            tooltip: 'Settings',
+                            onPressed: () => _openSettings(context),
+                          ),
+                          const SizedBox(width: 6),
+                          StudioIconButton(
                             icon: Icons.refresh,
                             tooltip: 'Refresh',
                             onPressed: controller.isBusy ? null : controller.refreshHome,
@@ -242,12 +257,6 @@ class HomeScreen extends StatelessWidget {
                             label: 'New Artwork',
                             icon: Icons.add_photo_alternate_outlined,
                             onPressed: () => _openCreateArtworkDialog(context),
-                          ),
-                          const SizedBox(width: 6),
-                          StudioIconButton(
-                            icon: Icons.logout,
-                            tooltip: 'Sign out',
-                            onPressed: controller.logout,
                           ),
                         ],
                       ),

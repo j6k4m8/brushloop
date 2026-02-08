@@ -88,6 +88,36 @@ class AppController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Updates the current user's display name.
+  Future<void> updateDisplayName(String displayName) async {
+    final token = _session?.token;
+    final session = _session;
+    if (token == null || session == null) {
+      throw const ApiException(statusCode: 401, message: 'Not authenticated');
+    }
+
+    final finalDisplayName = displayName.trim();
+    if (finalDisplayName.isEmpty) {
+      throw const ApiException(
+        statusCode: 400,
+        message: 'Display name cannot be empty',
+      );
+    }
+
+    await _runBusy(() async {
+      final updatedUser = await _apiClient.updateProfileDisplayName(
+        token: token,
+        displayName: finalDisplayName,
+      );
+      _session = SessionState(
+        token: session.token,
+        user: updatedUser,
+        expiresAt: session.expiresAt,
+      );
+      await _loadHomeData();
+    });
+  }
+
   /// Refreshes contacts and artworks.
   Future<void> refreshHome() async {
     await _runBusy(_loadHomeData);

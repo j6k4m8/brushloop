@@ -18,6 +18,7 @@ import type {
   RegisterRequest,
   SendChatMessageRequest,
   SubmitTurnRequest,
+  UpdateProfileRequest,
   UpdateArtworkTitleRequest
 } from "./rest.ts";
 
@@ -145,6 +146,17 @@ export function parseSendChatMessageRequest(input: unknown): SendChatMessageRequ
 
   return {
     body: requireString(input.body, "body")
+  };
+}
+
+/**
+ * Parse and validate profile update payload.
+ */
+export function parseUpdateProfileRequest(input: unknown): UpdateProfileRequest {
+  assertObject(input, "update profile request");
+
+  return {
+    displayName: requireString(input.displayName, "displayName")
   };
 }
 

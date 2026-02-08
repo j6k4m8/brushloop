@@ -6,6 +6,7 @@ import {
   parseLoginRequest,
   parseRegisterRequest,
   parseSendChatMessageRequest,
+  parseUpdateProfileRequest,
   parseSubmitTurnRequest,
   parseUpdateArtworkTitleRequest
 } from "../../packages/shared/src/index.ts";
@@ -118,6 +119,28 @@ export function createAppServer(): AppServer {
       email: auth.user.email,
       displayName: auth.user.displayName
     });
+  });
+
+  router.register("POST", "/api/auth/me", async ({ req, res }) => {
+    const auth = requireAuth(req, res, db);
+    if (!auth) {
+      return;
+    }
+
+    const payload = parseUpdateProfileRequest(await readJsonBody(req));
+    try {
+      const updated = db.updateUserDisplayName(auth.user.id, payload.displayName);
+      writeJson(res, 200, {
+        id: updated.id,
+        email: updated.email,
+        displayName: updated.displayName
+      });
+    } catch (error) {
+      writeJson(res, 400, {
+        error: "failed_to_update_profile",
+        message: error instanceof Error ? error.message : "unknown error"
+      });
+    }
   });
 
   router.register("POST", "/api/contacts/invite", async ({ req, res }) => {

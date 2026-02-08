@@ -159,6 +159,31 @@ export class BrushloopDatabase {
     return row ? mapUserRow(row) : null;
   }
 
+  updateUserDisplayName(userId: Id, displayName: string): UserRecord {
+    const finalDisplayName = displayName.trim();
+    if (finalDisplayName.length === 0) {
+      throw new Error("displayName must be a non-empty string");
+    }
+
+    const user = this.getUserById(userId);
+    if (!user) {
+      throw new Error("user not found");
+    }
+
+    this.db
+      .prepare(
+        `UPDATE users
+         SET display_name = ?
+         WHERE id = ?`
+      )
+      .run(finalDisplayName, userId);
+
+    return {
+      ...user,
+      displayName: finalDisplayName
+    };
+  }
+
   createSession(userId: Id, ttlHours: number): UserSession {
     const token = randomUUID().replace(/-/g, "") + randomUUID().replace(/-/g, "");
     const createdAt = nowIso();

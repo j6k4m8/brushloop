@@ -51,6 +51,21 @@ class ApiClient {
     return SessionState.fromJson(jsonPayload);
   }
 
+  /// Updates current user profile display name.
+  Future<SessionUser> updateProfileDisplayName({
+    required String token,
+    required String displayName,
+  }) async {
+    final payload = await _requestJson(
+      method: 'POST',
+      path: '/api/auth/me',
+      token: token,
+      jsonBody: <String, dynamic>{'displayName': displayName},
+    );
+
+    return SessionUser.fromJson(payload as Map<String, dynamic>);
+  }
+
   /// Lists accepted contacts for the current user.
   Future<List<ContactSummary>> fetchContacts({required String token}) async {
     final jsonPayload = await _requestJson(

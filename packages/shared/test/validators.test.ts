@@ -6,6 +6,7 @@ import {
   parseCreateArtworkRequest,
   parseLoginRequest,
   parseSendChatMessageRequest,
+  parseUpdateProfileRequest,
   parseUpdateArtworkTitleRequest,
   parseRegisterRequest
 } from "../src/index.ts";
@@ -93,4 +94,12 @@ test("parseSendChatMessageRequest parses body payload", () => {
   });
 
   assert.equal(parsed.body, "Hey, let us sketch tonight.");
+});
+
+test("parseUpdateProfileRequest parses display name payload", () => {
+  const parsed = parseUpdateProfileRequest({
+    displayName: "Painter Two"
+  });
+
+  assert.equal(parsed.displayName, "Painter Two");
 });

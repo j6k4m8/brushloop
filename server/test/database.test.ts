@@ -26,6 +26,18 @@ test("database creates users and login sessions", () => {
   db.close();
 });
 
+test("database updates user display names", () => {
+  const dbPath = makeTmpPath("user-display-name");
+  const db = new BrushloopDatabase(dbPath);
+
+  const user = db.createUser("display@example.com", "Display", hashPassword("password123"));
+  const updated = db.updateUserDisplayName(user.id, "Display Updated");
+  assert.equal(updated.displayName, "Display Updated");
+  assert.equal(db.getUserById(user.id)?.displayName, "Display Updated");
+
+  db.close();
+});
+
 test("turn submission advances round robin", () => {
   const dbPath = makeTmpPath("turns");
   const db = new BrushloopDatabase(dbPath);

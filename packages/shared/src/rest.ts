@@ -52,6 +52,10 @@ export interface SendChatMessageRequest {
   body: string;
 }
 
+export interface UpdateProfileRequest {
+  displayName: string;
+}
+
 export interface ArtworkListItem {
   id: Id;
   title: string;
