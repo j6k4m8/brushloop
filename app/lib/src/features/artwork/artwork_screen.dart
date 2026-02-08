@@ -47,6 +47,12 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
   Color _brushColor = const Color(0xFF111827);
   bool _showMobileInspectorPane = false;
   final GlobalKey _canvasBoundaryKey = GlobalKey();
+  final TransformationController _viewportController = TransformationController();
+  Size _lastViewportSize = Size.zero;
+  Size _lastArtworkSize = Size.zero;
+  bool _viewportNeedsFit = true;
+  double _minViewportScale = 0.1;
+  double _maxViewportScale = 8;
 
   CollaborationSocket? _socket;
   StreamSubscription<Map<String, dynamic>>? _messageSubscription;
@@ -65,6 +71,7 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
       socket.leaveArtwork(widget.artwork.id);
       socket.disconnect();
     }
+    _viewportController.dispose();
     super.dispose();
   }
 
@@ -86,6 +93,7 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
           (layer) => !layer.isLocked,
           orElse: () => details.layers.first,
         ).id;
+        _viewportNeedsFit = true;
       });
     } catch (error) {
       if (!mounted) {
@@ -133,13 +141,13 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
   }
 
   void _onPanStart(DragStartDetails details) {
-    final layerId = _selectedLayerId;
-    if (!_canEdit || layerId == null) {
+    if (_tool == _EditorTool.eyedropper) {
+      unawaited(_sampleColorAt(details.localPosition));
       return;
     }
 
-    if (_tool == _EditorTool.eyedropper) {
-      unawaited(_sampleColorAt(details.localPosition));
+    final layerId = _selectedLayerId;
+    if (!_canEdit || layerId == null) {
       return;
     }
 
@@ -778,6 +786,13 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
               active: _tool == _EditorTool.eyedropper,
               onPressed: () => setState(() => _tool = _EditorTool.eyedropper),
             ),
+            const SizedBox(width: 6),
+            StudioIconButton(
+              icon: Icons.open_with,
+              tooltip: 'Pan / Zoom',
+              active: _tool == _EditorTool.pan,
+              onPressed: () => setState(() => _tool = _EditorTool.pan),
+            ),
             const SizedBox(width: 10),
             SizedBox(
               width: 180,
@@ -1024,9 +1039,10 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
     final layerOrder = <String, int>{
       for (final layer in details.layers) layer.id: layer.sortOrder,
     };
-    final artworkAspectRatio = details.artwork.height == 0
-        ? 1.0
-        : details.artwork.width / details.artwork.height;
+    final artworkSize = Size(
+      max(1, details.artwork.width).toDouble(),
+      max(1, details.artwork.height).toDouble(),
+    );
 
     return Container(
       decoration: BoxDecoration(
@@ -1036,58 +1052,74 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final availableWidth = max(0.0, constraints.maxWidth - 8);
-          final availableHeight = max(0.0, constraints.maxHeight - 8);
-
-          var canvasWidth = availableWidth;
-          var canvasHeight = canvasWidth / artworkAspectRatio;
-          if (canvasHeight > availableHeight) {
-            canvasHeight = availableHeight;
-            canvasWidth = canvasHeight * artworkAspectRatio;
+          final viewportSize = Size(constraints.maxWidth, constraints.maxHeight);
+          final viewportChanged = _lastViewportSize != viewportSize;
+          final artworkChanged = _lastArtworkSize != artworkSize;
+          if (_viewportNeedsFit || viewportChanged || artworkChanged) {
+            _lastViewportSize = viewportSize;
+            _lastArtworkSize = artworkSize;
+            _viewportNeedsFit = false;
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted) {
+                return;
+              }
+              _fitCanvasToViewport(viewportSize, artworkSize);
+            });
           }
 
-          return Center(
-            child: SizedBox(
-              width: canvasWidth,
-              height: canvasHeight,
-              child: Container(
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF5F5F5),
-                  border: Border.all(color: const Color(0xFFCCCCCC)),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: RepaintBoundary(
-                  key: _canvasBoundaryKey,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(3),
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: <Widget>[
-                        if (details.artwork.basePhotoPath case final photoPath?)
-                          IgnorePointer(
-                            child: Image.network(
-                              _resolveMediaUrl(photoPath),
-                              fit: BoxFit.cover,
-                              headers: <String, String>{
-                                if (widget.controller.session case final session?)
-                                  'Authorization': 'Bearer ${session.token}',
-                              },
-                              errorBuilder: (context, error, stackTrace) {
-                                return const SizedBox.shrink();
-                              },
+          return ClipRect(
+            child: InteractiveViewer(
+              transformationController: _viewportController,
+              minScale: _minViewportScale,
+              maxScale: _maxViewportScale,
+              constrained: false,
+              boundaryMargin: const EdgeInsets.all(100000),
+              panEnabled: _tool == _EditorTool.pan,
+              scaleEnabled: _tool == _EditorTool.pan,
+              clipBehavior: Clip.hardEdge,
+              child: SizedBox(
+                width: artworkSize.width,
+                height: artworkSize.height,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF5F5F5),
+                    border: Border.all(color: const Color(0xFFCCCCCC)),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: RepaintBoundary(
+                    key: _canvasBoundaryKey,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(3),
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: <Widget>[
+                          if (details.artwork.basePhotoPath case final photoPath?)
+                            IgnorePointer(
+                              child: Image.network(
+                                _resolveMediaUrl(photoPath),
+                                fit: BoxFit.cover,
+                                headers: <String, String>{
+                                  if (widget.controller.session case final session?)
+                                    'Authorization': 'Bearer ${session.token}',
+                                },
+                                errorBuilder: (context, error, stackTrace) {
+                                  return const SizedBox.shrink();
+                                },
+                              ),
                             ),
+                          DrawingCanvas(
+                            strokes: _strokes,
+                            activeStroke: _activeStroke,
+                            visibleLayerIds: visibleLayerIds,
+                            layerOrder: layerOrder,
+                            canEdit: _tool == _EditorTool.eyedropper ||
+                                (_canEdit && _tool != _EditorTool.pan),
+                            onPanStart: _onPanStart,
+                            onPanUpdate: _onPanUpdate,
+                            onPanEnd: _onPanEnd,
                           ),
-                        DrawingCanvas(
-                          strokes: _strokes,
-                          activeStroke: _activeStroke,
-                          visibleLayerIds: visibleLayerIds,
-                          layerOrder: layerOrder,
-                          canEdit: _canEdit,
-                          onPanStart: _onPanStart,
-                          onPanUpdate: _onPanUpdate,
-                          onPanEnd: _onPanEnd,
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -1097,6 +1129,28 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
         },
       ),
     );
+  }
+
+  void _fitCanvasToViewport(Size viewportSize, Size artworkSize) {
+    if (viewportSize.width <= 0 ||
+        viewportSize.height <= 0 ||
+        artworkSize.width <= 0 ||
+        artworkSize.height <= 0) {
+      return;
+    }
+
+    final scale = min(
+      viewportSize.width / artworkSize.width,
+      viewportSize.height / artworkSize.height,
+    );
+    final translateX = (viewportSize.width - artworkSize.width * scale) / 2;
+    final translateY = (viewportSize.height - artworkSize.height * scale) / 2;
+
+    _minViewportScale = max(scale * 0.1, 0.02);
+    _maxViewportScale = max(scale * 12, 6);
+    _viewportController.value = Matrix4.identity()
+      ..translateByDouble(translateX, translateY, 0, 1)
+      ..scaleByDouble(scale, scale, 1, 1);
   }
 
   String _resolveMediaUrl(String pathOrUrl) {
@@ -1242,4 +1296,5 @@ enum _EditorTool {
   brush,
   eraser,
   eyedropper,
+  pan,
 }
