@@ -35,3 +35,4 @@
 - [x] Task 33: Fix artwork header title-edit button alignment.
 - [x] Task 34: Add chat gap timestamps and unread indicators for contact chats.
 - [x] Task 35: Add settings page with display-name update and move logout from home toolbar.
+- [T] Task 36: Add "New artwork with {username}" action in chat shared artworks pane with prepopulated contact flow.

@@ -1,4 +1,7 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../core/models.dart';
 import '../../state/app_controller.dart';
@@ -188,6 +191,23 @@ class _ChatScreenState extends State<ChatScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _openCreateArtworkDialog() async {
+    final created = await showDialog<bool>(
+      context: context,
+      builder: (_) => _CreateArtworkWithContactDialog(
+        controller: widget.controller,
+        contact: widget.contact,
+      ),
+    );
+
+    if (created != true || !mounted) {
+      return;
+    }
+
+    await widget.controller.refreshHome();
+    await _loadThread();
   }
 
   String _displayNameForUserId(String userId) {
@@ -389,6 +409,12 @@ class _ChatScreenState extends State<ChatScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
           const StudioSectionLabel('Shared Artworks'),
+          const SizedBox(height: 8),
+          StudioButton(
+            label: 'New artwork with ${thread.contact.displayName}',
+            icon: Icons.add_photo_alternate_outlined,
+            onPressed: _openCreateArtworkDialog,
+          ),
           const SizedBox(height: 8),
           Expanded(
             child: artworks.isEmpty
@@ -624,4 +650,325 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
     );
   }
+}
+
+/// First-turn selector for turn-based artwork creation from chat.
+enum _InitialTurnChoice { me, contact }
+
+/// Picked base-photo payload used by chat artwork creation dialog.
+class _PickedArtworkPhoto {
+  const _PickedArtworkPhoto({
+    required this.bytes,
+    required this.filename,
+    required this.mimeType,
+  });
+
+  final Uint8List bytes;
+  final String filename;
+  final String mimeType;
+}
+
+/// Create-artwork dialog used from a chat workspace with contact preselected.
+class _CreateArtworkWithContactDialog extends StatefulWidget {
+  const _CreateArtworkWithContactDialog({
+    required this.controller,
+    required this.contact,
+  });
+
+  final AppController controller;
+  final ContactSummary contact;
+
+  @override
+  State<_CreateArtworkWithContactDialog> createState() =>
+      _CreateArtworkWithContactDialogState();
+}
+
+class _CreateArtworkWithContactDialogState
+    extends State<_CreateArtworkWithContactDialog> {
+  final ImagePicker _picker = ImagePicker();
+
+  ArtworkMode _mode = ArtworkMode.realTime;
+  _InitialTurnChoice _firstTurnChoice = _InitialTurnChoice.me;
+  _PickedArtworkPhoto? _photo;
+  bool _isPickingPhoto = false;
+  bool _isSubmitting = false;
+
+  Future<void> _pickPhoto(ImageSource source) async {
+    setState(() {
+      _isPickingPhoto = true;
+    });
+
+    try {
+      final picked = await _picker.pickImage(
+        source: source,
+        maxWidth: 3000,
+        imageQuality: 95,
+      );
+
+      if (picked == null) {
+        return;
+      }
+
+      final bytes = await picked.readAsBytes();
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _photo = _PickedArtworkPhoto(
+          bytes: bytes,
+          filename: picked.name.isEmpty ? 'photo.jpg' : picked.name,
+          mimeType: inferImageMimeType(picked.name),
+        );
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Photo selection failed: $error')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isPickingPhoto = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _submit() async {
+    setState(() {
+      _isSubmitting = true;
+    });
+
+    try {
+      final basePhoto = _photo;
+      final sessionUserId = widget.controller.session?.user.id;
+      final firstTurnUserId = _mode != ArtworkMode.turnBased
+          ? null
+          : _firstTurnChoice == _InitialTurnChoice.me
+              ? sessionUserId
+              : widget.contact.userId;
+
+      await widget.controller.createArtwork(
+        mode: _mode,
+        collaborator: widget.contact,
+        firstTurnUserId: firstTurnUserId,
+        basePhoto: basePhoto == null
+            ? null
+            : ArtworkBasePhotoInput(
+                bytes: basePhoto.bytes,
+                filename: basePhoto.filename,
+                mimeType: basePhoto.mimeType,
+              ),
+      );
+
+      if (!mounted) {
+        return;
+      }
+      Navigator.of(context).pop(true);
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not create artwork: $error')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 520),
+        child: StudioPanel(
+          padding: const EdgeInsets.all(14),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                Text(
+                  'Create Artwork with ${widget.contact.displayName}',
+                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 10),
+                DropdownButtonFormField<ArtworkMode>(
+                  initialValue: _mode,
+                  decoration: const InputDecoration(labelText: 'Mode'),
+                  items: const <DropdownMenuItem<ArtworkMode>>[
+                    DropdownMenuItem(
+                      value: ArtworkMode.realTime,
+                      child: Text('Real-time'),
+                    ),
+                    DropdownMenuItem(
+                      value: ArtworkMode.turnBased,
+                      child: Text('Turn-based'),
+                    ),
+                  ],
+                  onChanged: _isSubmitting
+                      ? null
+                      : (value) {
+                          if (value == null) {
+                            return;
+                          }
+                          setState(() {
+                            _mode = value;
+                          });
+                        },
+                ),
+                if (_mode == ArtworkMode.turnBased) ...<Widget>[
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<_InitialTurnChoice>(
+                    initialValue: _firstTurnChoice,
+                    decoration: const InputDecoration(labelText: 'First turn'),
+                    items: <DropdownMenuItem<_InitialTurnChoice>>[
+                      const DropdownMenuItem<_InitialTurnChoice>(
+                        value: _InitialTurnChoice.me,
+                        child: Text('You'),
+                      ),
+                      DropdownMenuItem<_InitialTurnChoice>(
+                        value: _InitialTurnChoice.contact,
+                        child: Text(widget.contact.displayName),
+                      ),
+                    ],
+                    onChanged: _isSubmitting
+                        ? null
+                        : (value) {
+                            if (value == null) {
+                              return;
+                            }
+                            setState(() {
+                              _firstTurnChoice = value;
+                            });
+                          },
+                  ),
+                ],
+                const SizedBox(height: 14),
+                const StudioSectionLabel('Base Photo'),
+                const SizedBox(height: 8),
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: StudioButton(
+                        label: 'Camera',
+                        icon: Icons.photo_camera_outlined,
+                        onPressed: _isSubmitting || _isPickingPhoto
+                            ? null
+                            : () => _pickPhoto(ImageSource.camera),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: StudioButton(
+                        label: 'Gallery',
+                        icon: Icons.photo_library_outlined,
+                        onPressed: _isSubmitting || _isPickingPhoto
+                            ? null
+                            : () => _pickPhoto(ImageSource.gallery),
+                      ),
+                    ),
+                  ],
+                ),
+                if (_isPickingPhoto)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 8),
+                    child: LinearProgressIndicator(minHeight: 2),
+                  ),
+                if (_photo != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 10),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: StudioPalette.panelSoft,
+                        border: Border.all(color: StudioPalette.border),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      padding: const EdgeInsets.all(8),
+                      child: Row(
+                        children: <Widget>[
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(4),
+                            child: Image.memory(
+                              _photo!.bytes,
+                              width: 84,
+                              height: 60,
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _photo!.filename,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                          ),
+                          StudioIconButton(
+                            icon: Icons.close,
+                            tooltip: 'Remove',
+                            onPressed: _isSubmitting
+                                ? null
+                                : () {
+                                    setState(() {
+                                      _photo = null;
+                                    });
+                                  },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                const SizedBox(height: 14),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: <Widget>[
+                    StudioButton(
+                      label: 'Cancel',
+                      onPressed:
+                          _isSubmitting ? null : () => Navigator.of(context).pop(false),
+                    ),
+                    const SizedBox(width: 8),
+                    StudioButton(
+                      label: _isSubmitting ? 'Creating...' : 'Create',
+                      icon: Icons.check,
+                      onPressed: _isSubmitting ? null : _submit,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Infers a reasonable image MIME type from filename extension.
+String inferImageMimeType(String filename) {
+  final lower = filename.toLowerCase();
+  if (lower.endsWith('.png')) {
+    return 'image/png';
+  }
+  if (lower.endsWith('.webp')) {
+    return 'image/webp';
+  }
+  if (lower.endsWith('.gif')) {
+    return 'image/gif';
+  }
+  if (lower.endsWith('.heic')) {
+    return 'image/heic';
+  }
+
+  return 'image/jpeg';
 }
