@@ -28,3 +28,4 @@
 - [x] Task 26: Add pan/zoom navigation tool and fit-to-viewport canvas behavior.
 - [x] Task 27: Support pinch-to-resize brush while using brush or eraser tools.
 - [x] Task 28: Fix Flutter gesture recognizer conflict by using a single scale-based canvas gesture pipeline.
+- [T] Task 29: Add live phantom brush-size preview during slider and pinch resizing.

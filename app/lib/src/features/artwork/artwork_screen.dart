@@ -55,6 +55,9 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
   double _maxViewportScale = 8;
   bool _pinchSizingActive = false;
   double _pinchInitialBrushSize = 8;
+  bool _showBrushSizePreview = false;
+  Offset? _brushPreviewPosition;
+  Timer? _brushPreviewHideTimer;
 
   CollaborationSocket? _socket;
   StreamSubscription<Map<String, dynamic>>? _messageSubscription;
@@ -69,6 +72,7 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
   @override
   void dispose() {
     _messageSubscription?.cancel();
+    _brushPreviewHideTimer?.cancel();
     if (_socket case final socket?) {
       socket.leaveArtwork(widget.artwork.id);
       socket.disconnect();
@@ -185,14 +189,12 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
       }
 
       final updatedSize =
-          (_pinchInitialBrushSize * details.scale).clamp(2.0, 36.0);
-      if ((updatedSize - _brushSize).abs() < 0.01) {
-        return;
-      }
-
-      setState(() {
-        _brushSize = updatedSize;
-      });
+          (_pinchInitialBrushSize * details.scale).clamp(2.0, 36.0).toDouble();
+      _setBrushSizeAndPreview(
+        updatedSize,
+        localPosition: details.localFocalPoint,
+        autoHide: false,
+      );
       return;
     }
 
@@ -263,6 +265,63 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
 
     setState(() {
       _pinchSizingActive = false;
+    });
+    _scheduleBrushPreviewHide();
+  }
+
+  /// Returns the current logical artwork size in canvas coordinates.
+  Size _currentArtworkSize() {
+    final details = _details;
+    if (details == null) {
+      if (_lastArtworkSize == Size.zero) {
+        return const Size(1, 1);
+      }
+      return _lastArtworkSize;
+    }
+
+    return Size(
+      max(1, details.artwork.width).toDouble(),
+      max(1, details.artwork.height).toDouble(),
+    );
+  }
+
+  /// Updates brush size and displays a temporary preview circle.
+  void _setBrushSizeAndPreview(
+    double size, {
+    Offset? localPosition,
+    required bool autoHide,
+  }) {
+    final artworkSize = _currentArtworkSize();
+    final fallback = Offset(artworkSize.width / 2, artworkSize.height / 2);
+    final target = localPosition ?? fallback;
+    final clampedTarget = Offset(
+      target.dx.clamp(0.0, artworkSize.width).toDouble(),
+      target.dy.clamp(0.0, artworkSize.height).toDouble(),
+    );
+
+    _brushPreviewHideTimer?.cancel();
+    setState(() {
+      _brushSize = size;
+      _showBrushSizePreview = true;
+      _brushPreviewPosition = clampedTarget;
+    });
+
+    if (autoHide) {
+      _scheduleBrushPreviewHide();
+    }
+  }
+
+  /// Schedules preview fade-out after a short inactivity delay.
+  void _scheduleBrushPreviewHide() {
+    _brushPreviewHideTimer?.cancel();
+    _brushPreviewHideTimer = Timer(const Duration(milliseconds: 450), () {
+      if (!mounted || !_showBrushSizePreview) {
+        return;
+      }
+
+      setState(() {
+        _showBrushSizePreview = false;
+      });
     });
   }
 
@@ -849,9 +908,10 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
                 min: 2,
                 max: 36,
                 onChanged: (value) {
-                  setState(() {
-                    _brushSize = value;
-                  });
+                  _setBrushSizeAndPreview(
+                    value,
+                    autoHide: true,
+                  );
                 },
               ),
             ),
@@ -1166,6 +1226,8 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
                             onScaleUpdate: _onScaleUpdate,
                             onScaleEnd: _onScaleEnd,
                           ),
+                          if (_showBrushSizePreview)
+                            _buildBrushSizePreviewOverlay(artworkSize),
                         ],
                       ),
                     ),
@@ -1175,6 +1237,35 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
             ),
           );
         },
+      ),
+    );
+  }
+
+  /// Builds a translucent circle preview that reflects current brush diameter.
+  Widget _buildBrushSizePreviewOverlay(Size artworkSize) {
+    final diameter = _brushSize.clamp(2.0, 36.0).toDouble();
+    final fallback = Offset(artworkSize.width / 2, artworkSize.height / 2);
+    final center = _brushPreviewPosition ?? fallback;
+    final left = (center.dx - diameter / 2)
+        .clamp(0.0, max(0.0, artworkSize.width - diameter))
+        .toDouble();
+    final top = (center.dy - diameter / 2)
+        .clamp(0.0, max(0.0, artworkSize.height - diameter))
+        .toDouble();
+
+    return Positioned(
+      left: left,
+      top: top,
+      child: IgnorePointer(
+        child: Container(
+          width: diameter,
+          height: diameter,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: const Color(0x22000000),
+            border: Border.all(color: StudioPalette.accent, width: 1.5),
+          ),
+        ),
       ),
     );
   }
