@@ -18,4 +18,4 @@
 - [x] Task 16: Add multi-layer creation and make eraser compositing correct per layer.
 - [x] Task 17: Isolate per-layer rendering so eraser cannot affect layers below.
 - [x] Task 18: Fix eraser black/flicker artifacts while preserving per-layer isolation.
-- [T] Task 19: Replace unstable eraser compositing path causing black/flicker viewport regression.
+- [x] Task 19: Replace unstable eraser compositing path causing black/flicker viewport regression.
