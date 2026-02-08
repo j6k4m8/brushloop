@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:file_selector/file_selector.dart' as fs;
 import 'package:image_picker/image_picker.dart';
 
 /// Returns whether native camera capture is supported in this app runtime.
@@ -46,6 +47,15 @@ Future<XFile?> pickArtworkImage({
   }
 
   try {
+    if (source == ImageSource.gallery && !_preferImagePickerGallery()) {
+      return await _pickGalleryViaFileSelector().timeout(
+        const Duration(seconds: 30),
+        onTimeout: () => throw StateError(
+          'Timed out opening gallery. Please retry.',
+        ),
+      );
+    }
+
     return await picker
         .pickImage(
           source: source,
@@ -62,6 +72,37 @@ Future<XFile?> pickArtworkImage({
     final message = _normalizePickerError(error, source: source);
     throw StateError(message);
   }
+}
+
+Future<XFile?> _pickGalleryViaFileSelector() {
+  return fs.openFile(
+    acceptedTypeGroups: const <fs.XTypeGroup>[
+      fs.XTypeGroup(
+        label: 'Images',
+        extensions: <String>[
+          'png',
+          'jpg',
+          'jpeg',
+          'webp',
+          'gif',
+          'heic',
+          'heif',
+          'bmp',
+        ],
+      ),
+    ],
+  );
+}
+
+bool _preferImagePickerGallery() {
+  if (kIsWeb) {
+    return false;
+  }
+
+  return switch (defaultTargetPlatform) {
+    TargetPlatform.android || TargetPlatform.iOS => true,
+    _ => false,
+  };
 }
 
 String _normalizePickerError(Object error, {required ImageSource source}) {
