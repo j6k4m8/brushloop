@@ -1,5 +1,3 @@
-import 'dart:ui' show PictureRecorder;
-
 import 'package:flutter/material.dart';
 
 /// A sampled point in a vector stroke.
@@ -92,82 +90,72 @@ class DrawingCanvas extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final painter = _DrawingPainter(
-      strokes: strokes,
-      activeStroke: activeStroke,
-      visibleLayerIds: visibleLayerIds,
-      layerOrder: layerOrder,
-    );
+    final sortedLayerIds = visibleLayerIds.toList()
+      ..sort((a, b) => (layerOrder[a] ?? 0).compareTo(layerOrder[b] ?? 0));
 
     return GestureDetector(
       onPanStart: canEdit ? onPanStart : null,
       onPanUpdate: canEdit ? onPanUpdate : null,
       onPanEnd: canEdit ? onPanEnd : null,
-      child: CustomPaint(
-        painter: painter,
-        child: const SizedBox.expand(),
+      child: SizedBox.expand(
+        child: Stack(
+          fit: StackFit.expand,
+          children: <Widget>[
+            for (final layerId in sortedLayerIds)
+              CustomPaint(
+                painter: _LayerPainter(
+                  layerId: layerId,
+                  strokes: strokes,
+                  activeStroke: activeStroke,
+                ),
+                child: const SizedBox.expand(),
+              ),
+          ],
+        ),
       ),
     );
   }
 }
 
-class _DrawingPainter extends CustomPainter {
-  const _DrawingPainter({
+class _LayerPainter extends CustomPainter {
+  const _LayerPainter({
+    required this.layerId,
     required this.strokes,
     required this.activeStroke,
-    required this.visibleLayerIds,
-    required this.layerOrder,
   });
 
+  final String layerId;
   final List<CanvasStroke> strokes;
   final CanvasStroke? activeStroke;
-  final Set<String> visibleLayerIds;
-  final Map<String, int> layerOrder;
 
   @override
   void paint(Canvas canvas, Size size) {
     final bounds = Offset.zero & size;
-    final layerIds = visibleLayerIds.toList()
-      ..sort((a, b) => (layerOrder[a] ?? 0).compareTo(layerOrder[b] ?? 0));
+    // Isolate this layer in its own offscreen buffer so clear blend erasing
+    // cannot leak into other layers.
+    canvas.saveLayer(bounds, Paint());
 
-    for (final layerId in layerIds) {
-      // Draw each layer into an offscreen picture so erasing cannot modify
-      // already-composited lower layers.
-      final recorder = PictureRecorder();
-      final layerCanvas = Canvas(recorder, bounds);
-      layerCanvas
-        ..clipRect(bounds)
-        ..drawRect(
-          bounds,
-          Paint()
-            ..blendMode = BlendMode.src
-            ..color = const Color(0x00000000),
-        );
-
-      for (final stroke in strokes) {
-        if (stroke.layerId != layerId) {
-          continue;
-        }
-        _paintStroke(layerCanvas, stroke);
+    for (final stroke in strokes) {
+      if (stroke.layerId != layerId) {
+        continue;
       }
-
-      if (activeStroke case final stroke?) {
-        if (stroke.layerId == layerId) {
-          _paintStroke(layerCanvas, stroke);
-        }
-      }
-
-      final picture = recorder.endRecording();
-      canvas.drawPicture(picture);
+      _paintStroke(canvas, stroke);
     }
+
+    if (activeStroke case final stroke?) {
+      if (stroke.layerId == layerId) {
+        _paintStroke(canvas, stroke);
+      }
+    }
+
+    canvas.restore();
   }
 
   @override
-  bool shouldRepaint(covariant _DrawingPainter oldDelegate) {
-    return oldDelegate.strokes != strokes ||
-        oldDelegate.activeStroke != activeStroke ||
-        oldDelegate.visibleLayerIds != visibleLayerIds ||
-        oldDelegate.layerOrder != layerOrder;
+  bool shouldRepaint(covariant _LayerPainter oldDelegate) {
+    return oldDelegate.layerId != layerId ||
+        oldDelegate.strokes != strokes ||
+        oldDelegate.activeStroke != activeStroke;
   }
 
   void _paintStroke(Canvas canvas, CanvasStroke stroke) {
@@ -181,7 +169,7 @@ class _DrawingPainter extends CustomPainter {
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round
       ..strokeWidth = stroke.size
-      ..blendMode = stroke.isEraser ? BlendMode.dstOut : BlendMode.srcOver
+      ..blendMode = stroke.isEraser ? BlendMode.clear : BlendMode.srcOver
       ..color = stroke.isEraser ? const Color(0xFFFFFFFF) : stroke.color;
 
     if (stroke.points.length == 1) {
