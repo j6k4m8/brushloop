@@ -5,6 +5,7 @@ import {
   parseCollaborationClientMessage,
   parseCreateArtworkRequest,
   parseLoginRequest,
+  parseUpdateArtworkTitleRequest,
   parseRegisterRequest
 } from "../src/index.ts";
 
@@ -75,4 +76,12 @@ test("parseCollaborationClientMessage rejects unknown type", () => {
       }),
     /unsupported message type/
   );
+});
+
+test("parseUpdateArtworkTitleRequest parses title payload", () => {
+  const parsed = parseUpdateArtworkTitleRequest({
+    title: "New Artwork Title"
+  });
+
+  assert.equal(parsed.title, "New Artwork Title");
 });

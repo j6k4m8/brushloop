@@ -5,7 +5,8 @@ import {
   parseInviteContactRequest,
   parseLoginRequest,
   parseRegisterRequest,
-  parseSubmitTurnRequest
+  parseSubmitTurnRequest,
+  parseUpdateArtworkTitleRequest
 } from "../../packages/shared/src/index.ts";
 import { hashPassword, verifyPassword } from "./auth/password.ts";
 import { CollaborationHub } from "./collab/hub.ts";
@@ -430,6 +431,36 @@ export function createAppServer(): AppServer {
     }
 
     writeJson(res, 200, details);
+  });
+
+  router.register("POST", "/api/artworks/:artworkId/title", async ({ req, res, params }) => {
+    const auth = requireAuth(req, res, db);
+    if (!auth) {
+      return;
+    }
+
+    const artworkId = params.artworkId;
+    if (!artworkId) {
+      writeJson(res, 400, { error: "artwork_id_required" });
+      return;
+    }
+
+    const payload = parseUpdateArtworkTitleRequest(await readJsonBody(req));
+
+    try {
+      db.updateArtworkTitle(artworkId, auth.user.id, payload.title);
+      const refreshed = db.getArtworkDetailsForUser(artworkId, auth.user.id);
+      if (!refreshed) {
+        writeJson(res, 404, { error: "artwork_not_found" });
+        return;
+      }
+      writeJson(res, 200, refreshed);
+    } catch (error) {
+      writeJson(res, 400, {
+        error: "failed_to_update_artwork_title",
+        message: error instanceof Error ? error.message : "unknown error"
+      });
+    }
   });
 
   router.register("POST", "/api/artworks/:artworkId/layers", async ({ req, res, params }) => {

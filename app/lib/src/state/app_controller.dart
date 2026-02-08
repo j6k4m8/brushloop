@@ -228,6 +228,32 @@ class AppController extends ChangeNotifier {
     return _apiClient.fetchArtworkDetails(token: token, artworkId: artworkId);
   }
 
+  /// Updates an artwork title and returns refreshed details.
+  Future<ArtworkDetails> renameArtworkTitle({
+    required String artworkId,
+    required String title,
+  }) async {
+    final token = _session?.token;
+    if (token == null) {
+      throw const ApiException(statusCode: 401, message: 'Not authenticated');
+    }
+
+    ArtworkDetails? refreshed;
+    await _runBusy(() async {
+      refreshed = await _apiClient.updateArtworkTitle(
+        token: token,
+        artworkId: artworkId,
+        title: title,
+      );
+      await _loadHomeData();
+    });
+
+    if (refreshed != null) {
+      return refreshed!;
+    }
+    return _apiClient.fetchArtworkDetails(token: token, artworkId: artworkId);
+  }
+
   Future<void> _loadHomeData() async {
     final token = _session?.token;
     if (token == null) {

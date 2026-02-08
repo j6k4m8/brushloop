@@ -44,6 +44,10 @@ export interface SubmitTurnRequest {
   artworkId: Id;
 }
 
+export interface UpdateArtworkTitleRequest {
+  title: string;
+}
+
 export interface ArtworkListItem {
   id: Id;
   title: string;

@@ -16,7 +16,8 @@ import type {
   InviteContactRequest,
   LoginRequest,
   RegisterRequest,
-  SubmitTurnRequest
+  SubmitTurnRequest,
+  UpdateArtworkTitleRequest
 } from "./rest.ts";
 
 function assertObject(value: unknown, context: string): asserts value is Record<string, unknown> {
@@ -121,6 +122,17 @@ export function parseSubmitTurnRequest(input: unknown): SubmitTurnRequest {
 
   return {
     artworkId: requireString(input.artworkId, "artworkId")
+  };
+}
+
+/**
+ * Parse and validate artwork title update payload.
+ */
+export function parseUpdateArtworkTitleRequest(input: unknown): UpdateArtworkTitleRequest {
+  assertObject(input, "update artwork title request");
+
+  return {
+    title: requireString(input.title, "title")
   };
 }
 

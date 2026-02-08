@@ -121,3 +121,27 @@ test("creating multiple layers increments sort order", () => {
 
   db.close();
 });
+
+test("participants can rename artwork titles", () => {
+  const dbPath = makeTmpPath("rename-artwork");
+  const db = new BrushloopDatabase(dbPath);
+
+  const user = db.createUser("rename@example.com", "Renamer", hashPassword("password123"));
+  const details = db.createArtwork({
+    title: "Original Title",
+    mode: "real_time",
+    width: 1200,
+    height: 800,
+    basePhotoPath: null,
+    createdByUserId: user.id,
+    participantUserIds: [user.id],
+    turnDurationMinutes: null
+  });
+
+  db.updateArtworkTitle(details.artwork.id, user.id, "Renamed Title");
+
+  const refreshed = db.getArtworkDetailsForUser(details.artwork.id, user.id);
+  assert.equal(refreshed?.artwork.title, "Renamed Title");
+
+  db.close();
+});

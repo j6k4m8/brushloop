@@ -89,6 +89,90 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
+  Future<void> _openRenameArtworkDialog(
+    BuildContext context,
+    ArtworkSummary artwork,
+  ) async {
+    final titleController = TextEditingController(text: artwork.title);
+    var shouldSave = false;
+    var pendingTitle = artwork.title;
+
+    try {
+      final result = await showDialog<bool>(
+        context: context,
+        builder: (context) {
+          return Dialog(
+            child: StudioPanel(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  const Text(
+                    'Rename Artwork',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: titleController,
+                    decoration: const InputDecoration(labelText: 'Title'),
+                    autofocus: true,
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: <Widget>[
+                      StudioButton(
+                        label: 'Cancel',
+                        onPressed: () => Navigator.of(context).pop(false),
+                      ),
+                      const SizedBox(width: 8),
+                      StudioButton(
+                        label: 'Save',
+                        onPressed: () => Navigator.of(context).pop(true),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+
+      shouldSave = result == true;
+      pendingTitle = titleController.text.trim();
+    } finally {
+      titleController.dispose();
+    }
+
+    if (!shouldSave || !context.mounted) {
+      return;
+    }
+
+    final title = pendingTitle;
+    if (title.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Title cannot be empty')),
+      );
+      return;
+    }
+
+    try {
+      await controller.renameArtworkTitle(
+        artworkId: artwork.id,
+        title: title,
+      );
+    } catch (error) {
+      if (!context.mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not rename artwork: $error')),
+      );
+    }
+  }
+
   Future<void> _openPendingInvites(BuildContext context) async {
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
@@ -166,6 +250,7 @@ class HomeScreen extends StatelessWidget {
                                 final artworksPane = _ArtworksPane(
                                   controller: controller,
                                   onTapArtwork: (item) => _openArtwork(context, item),
+                                  onRenameArtwork: (item) => _openRenameArtworkDialog(context, item),
                                 );
 
                                 if (twoPane) {
@@ -652,10 +737,49 @@ class _ArtworksPane extends StatelessWidget {
   const _ArtworksPane({
     required this.controller,
     required this.onTapArtwork,
+    required this.onRenameArtwork,
   });
 
   final AppController controller;
   final ValueChanged<ArtworkSummary> onTapArtwork;
+  final ValueChanged<ArtworkSummary> onRenameArtwork;
+
+  /// Resolves a participant id into display name when available.
+  String _displayNameForUserId(String userId) {
+    for (final contact in controller.contacts) {
+      if (contact.userId == userId) {
+        return contact.displayName;
+      }
+    }
+
+    if (userId.length <= 16) {
+      return userId;
+    }
+    return '${userId.substring(0, 16)}...';
+  }
+
+  /// Formats a collaboration descriptor for home list rows.
+  String _artworkDescriptor(ArtworkSummary artwork) {
+    final sessionUserId = controller.session?.user.id;
+    final collaboratorIds = artwork.participantUserIds
+        .where((userId) => userId != sessionUserId)
+        .toList();
+
+    if (collaboratorIds.isEmpty) {
+      return 'Private artwork';
+    }
+
+    final collaboratorNames =
+        collaboratorIds.map(_displayNameForUserId).toList();
+
+    final modeLabel =
+        artwork.mode == ArtworkMode.realTime ? 'Real-time' : 'Turn-based';
+    if (collaboratorNames.length == 1) {
+      return '$modeLabel with ${collaboratorNames.first}';
+    }
+
+    return '$modeLabel with ${collaboratorNames.first} +${collaboratorNames.length - 1}';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -683,6 +807,7 @@ class _ArtworksPane extends StatelessWidget {
                         borderRadius: BorderRadius.circular(4),
                         child: InkWell(
                           onTap: () => onTapArtwork(artwork),
+                          onLongPress: () => onRenameArtwork(artwork),
                           borderRadius: BorderRadius.circular(4),
                           child: Container(
                             decoration: BoxDecoration(
@@ -712,9 +837,7 @@ class _ArtworksPane extends StatelessWidget {
                                       ),
                                       const SizedBox(height: 2),
                                       Text(
-                                        artwork.mode == ArtworkMode.realTime
-                                            ? 'Real-time collaboration'
-                                            : 'Turn-based collaboration',
+                                        _artworkDescriptor(artwork),
                                         style: const TextStyle(
                                           fontSize: 12,
                                           color: StudioPalette.textMuted,

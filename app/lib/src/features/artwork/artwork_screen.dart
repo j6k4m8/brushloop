@@ -379,6 +379,93 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
     }
   }
 
+  Future<void> _renameArtworkTitle(ArtworkDetails details) async {
+    final titleController = TextEditingController(text: details.artwork.title);
+    var shouldSave = false;
+    var pendingTitle = details.artwork.title;
+
+    try {
+      final result = await showDialog<bool>(
+        context: context,
+        builder: (context) {
+          return Dialog(
+            child: StudioPanel(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  const Text(
+                    'Rename Artwork',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: titleController,
+                    decoration: const InputDecoration(labelText: 'Title'),
+                    autofocus: true,
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: <Widget>[
+                      StudioButton(
+                        label: 'Cancel',
+                        onPressed: () => Navigator.of(context).pop(false),
+                      ),
+                      const SizedBox(width: 8),
+                      StudioButton(
+                        label: 'Save',
+                        onPressed: () => Navigator.of(context).pop(true),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+
+      shouldSave = result == true;
+      pendingTitle = titleController.text.trim();
+    } finally {
+      titleController.dispose();
+    }
+
+    if (!shouldSave || !mounted) {
+      return;
+    }
+
+    if (pendingTitle.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Title cannot be empty')),
+      );
+      return;
+    }
+
+    try {
+      final refreshed = await widget.controller.renameArtworkTitle(
+        artworkId: details.artwork.id,
+        title: pendingTitle,
+      );
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _details = refreshed;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not rename artwork: $error')),
+      );
+    }
+  }
+
   void _undo() {
     if (_strokes.isEmpty) {
       return;
@@ -786,6 +873,7 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
     final turnButtonLabel = _canEdit
         ? 'Submit Turn'
         : 'Waiting for $waitingName';
+    final descriptor = _artworkDescriptor(details);
     return StudioPanel(
       color: StudioPalette.chrome,
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -801,19 +889,29 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Text(
-                  details.artwork.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                  ),
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: Text(
+                        details.artwork.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    StudioIconButton(
+                      icon: Icons.edit_outlined,
+                      tooltip: 'Rename artwork',
+                      onPressed: () => _renameArtworkTitle(details),
+                    ),
+                  ],
                 ),
                 Text(
-                  details.artwork.mode == ArtworkMode.realTime
-                      ? 'Real-time'
-                      : 'Turn-based',
+                  descriptor,
                   style: const TextStyle(
                     fontSize: 12,
                     color: StudioPalette.textMuted,
@@ -871,6 +969,27 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
       return userId;
     }
     return '${userId.substring(0, 16)}...';
+  }
+
+  /// Builds collaboration descriptor text shown in editor header.
+  String _artworkDescriptor(ArtworkDetails details) {
+    final sessionUserId = widget.controller.session?.user.id;
+    final collaboratorIds = details.participants
+        .map((participant) => participant.userId)
+        .where((userId) => userId != sessionUserId)
+        .toList();
+
+    if (collaboratorIds.isEmpty) {
+      return 'Private artwork';
+    }
+
+    final collaboratorNames = collaboratorIds.map(_displayNameForUserId).toList();
+    final modeLabel =
+        details.artwork.mode == ArtworkMode.realTime ? 'Real-time' : 'Turn-based';
+    if (collaboratorNames.length == 1) {
+      return '$modeLabel with ${collaboratorNames.first}';
+    }
+    return '$modeLabel with ${collaboratorNames.first} +${collaboratorNames.length - 1}';
   }
 
   Widget _buildQuickToolRow() {

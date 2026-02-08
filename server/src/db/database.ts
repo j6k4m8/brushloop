@@ -779,6 +779,34 @@ export class BrushloopDatabase {
     };
   }
 
+  updateArtworkTitle(artworkId: Id, userId: Id, title: string): void {
+    const finalTitle = title.trim();
+    if (finalTitle.length === 0) {
+      throw new Error("title must be a non-empty string");
+    }
+
+    const membership = this.db
+      .prepare(
+        `SELECT id
+         FROM artwork_participants
+         WHERE artwork_id = ? AND user_id = ?`
+      )
+      .get(artworkId, userId) as { id: string } | undefined;
+
+    if (!membership) {
+      throw new Error("user is not a participant in this artwork");
+    }
+
+    const now = nowIso();
+    this.db
+      .prepare(
+        `UPDATE artworks
+         SET title = ?, updated_at = ?
+         WHERE id = ?`
+      )
+      .run(finalTitle, now, artworkId);
+  }
+
   createLayer(artworkId: Id, userId: Id, name?: string): Layer {
     const membership = this.db
       .prepare(

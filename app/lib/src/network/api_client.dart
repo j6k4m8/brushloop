@@ -193,6 +193,22 @@ class ApiClient {
     return ArtworkLayer.fromJson(payload as Map<String, dynamic>);
   }
 
+  /// Renames an artwork and returns refreshed artwork details.
+  Future<ArtworkDetails> updateArtworkTitle({
+    required String token,
+    required String artworkId,
+    required String title,
+  }) async {
+    final payload = await _requestJson(
+      method: 'POST',
+      path: '/api/artworks/$artworkId/title',
+      token: token,
+      jsonBody: <String, dynamic>{'title': title},
+    );
+
+    return ArtworkDetails.fromJson(payload as Map<String, dynamic>);
+  }
+
   /// Uploads a media file to the server and returns stored metadata.
   Future<UploadedMedia> uploadMedia({
     required String token,
