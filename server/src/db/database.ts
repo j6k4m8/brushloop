@@ -45,6 +45,17 @@ export interface ArtworkDetails {
   currentTurn: TurnState | null;
 }
 
+export interface MediaAssetRecord {
+  id: Id;
+  ownerUserId: Id;
+  storageDriver: "local" | "s3";
+  storageKey: string;
+  mimeType: string;
+  originalFilename: string;
+  byteSize: number;
+  createdAt: string;
+}
+
 /**
  * SQLite persistence gateway for core BrushLoop entities.
  */
@@ -1016,6 +1027,70 @@ export class BrushloopDatabase {
     return {
       versionNumber: row.version_number,
       stateJson: row.state_json
+    };
+  }
+
+  createMediaAsset(input: Omit<MediaAssetRecord, "id" | "createdAt">): MediaAssetRecord {
+    const id = randomUUID();
+    const createdAt = nowIso();
+
+    this.db
+      .prepare(
+        `INSERT INTO media_assets (
+           id, owner_user_id, storage_driver, storage_key, mime_type, original_filename, byte_size, created_at
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .run(
+        id,
+        input.ownerUserId,
+        input.storageDriver,
+        input.storageKey,
+        input.mimeType,
+        input.originalFilename,
+        input.byteSize,
+        createdAt
+      );
+
+    return {
+      id,
+      createdAt,
+      ...input
+    };
+  }
+
+  getMediaAssetById(mediaAssetId: Id): MediaAssetRecord | null {
+    const row = this.db
+      .prepare(
+        `SELECT id, owner_user_id, storage_driver, storage_key, mime_type, original_filename, byte_size, created_at
+         FROM media_assets
+         WHERE id = ?`
+      )
+      .get(mediaAssetId) as
+      | {
+          id: string;
+          owner_user_id: string;
+          storage_driver: "local" | "s3";
+          storage_key: string;
+          mime_type: string;
+          original_filename: string;
+          byte_size: number;
+          created_at: string;
+        }
+      | undefined;
+
+    if (!row) {
+      return null;
+    }
+
+    return {
+      id: row.id,
+      ownerUserId: row.owner_user_id,
+      storageDriver: row.storage_driver,
+      storageKey: row.storage_key,
+      mimeType: row.mime_type,
+      originalFilename: row.original_filename,
+      byteSize: row.byte_size,
+      createdAt: row.created_at
     };
   }
 }

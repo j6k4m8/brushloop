@@ -23,6 +23,27 @@ export async function readJsonBody(req: IncomingMessage): Promise<unknown> {
 }
 
 /**
+ * Parse request body as binary with max-size guard.
+ */
+export async function readBinaryBody(req: IncomingMessage, maxBytes: number): Promise<Buffer> {
+  const chunks: Buffer[] = [];
+  let receivedBytes = 0;
+
+  for await (const chunk of req) {
+    const chunkBuffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    receivedBytes += chunkBuffer.length;
+
+    if (receivedBytes > maxBytes) {
+      throw new Error(`payload exceeds max size of ${maxBytes} bytes`);
+    }
+
+    chunks.push(chunkBuffer);
+  }
+
+  return Buffer.concat(chunks);
+}
+
+/**
  * Serialize a JSON response with status code.
  */
 export function writeJson(res: ServerResponse, statusCode: number, payload: unknown): void {
@@ -34,10 +55,25 @@ export function writeJson(res: ServerResponse, statusCode: number, payload: unkn
 }
 
 /**
+ * Serialize a binary response with status code and MIME type.
+ */
+export function writeBinary(
+  res: ServerResponse,
+  statusCode: number,
+  payload: Buffer,
+  mimeType: string
+): void {
+  res.statusCode = statusCode;
+  res.setHeader("Content-Type", mimeType);
+  res.setHeader("Content-Length", payload.length);
+  res.end(payload);
+}
+
+/**
  * Apply permissive CORS headers for local/mobile client usage.
  */
 export function applyCors(res: ServerResponse): void {
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-File-Name");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
 }

@@ -139,6 +139,18 @@ CREATE TABLE IF NOT EXISTS notifications (
   FOREIGN KEY (artwork_id) REFERENCES artworks(id) ON DELETE SET NULL
 );
 
+CREATE TABLE IF NOT EXISTS media_assets (
+  id TEXT PRIMARY KEY,
+  owner_user_id TEXT NOT NULL,
+  storage_driver TEXT NOT NULL,
+  storage_key TEXT NOT NULL,
+  mime_type TEXT NOT NULL,
+  original_filename TEXT NOT NULL,
+  byte_size INTEGER NOT NULL,
+  created_at TEXT NOT NULL,
+  FOREIGN KEY (owner_user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_invitations_email ON contact_invitations(invitee_email);
 CREATE INDEX IF NOT EXISTS idx_participants_artwork ON artwork_participants(artwork_id);
@@ -147,4 +159,5 @@ CREATE INDEX IF NOT EXISTS idx_turns_artwork_completed ON turns(artwork_id, comp
 CREATE INDEX IF NOT EXISTS idx_ops_artwork_lamport ON crdt_operations(artwork_id, lamport_ts);
 CREATE INDEX IF NOT EXISTS idx_snapshots_artwork_version ON snapshots(artwork_id, version_number);
 CREATE INDEX IF NOT EXISTS idx_notifications_user_delivered ON notifications(user_id, delivered_at);
+CREATE INDEX IF NOT EXISTS idx_media_assets_owner ON media_assets(owner_user_id);
 `;

@@ -12,9 +12,10 @@ import { CollaborationHub } from "./collab/hub.ts";
 import { loadConfig } from "./config.ts";
 import { BrushloopDatabase } from "./db/database.ts";
 import { Router } from "./http/router.ts";
-import { applyCors, readJsonBody, writeJson } from "./http/utils.ts";
+import { applyCors, readBinaryBody, readJsonBody, writeBinary, writeJson } from "./http/utils.ts";
 import { NotificationDispatcher } from "./notifications/dispatcher.ts";
 import { LocalNotificationAdapter } from "./notifications/local-adapter.ts";
+import { createStorageAdapter } from "./storage/factory.ts";
 import { TurnExpiryWorker } from "./turns/expiry-worker.ts";
 
 interface AppServer {
@@ -29,6 +30,7 @@ interface AppServer {
 export function createAppServer(): AppServer {
   const config = loadConfig();
   const db = new BrushloopDatabase(config.sqlitePath);
+  const storageAdapter = createStorageAdapter(config);
   const collaborationHub = new CollaborationHub(db);
   const notificationDispatcher = new NotificationDispatcher(
     db,
@@ -181,6 +183,101 @@ export function createAppServer(): AppServer {
     }
 
     writeJson(res, 200, db.listContacts(auth.user.id));
+  });
+
+  router.register("POST", "/api/media/upload", async ({ req, res }) => {
+    const auth = requireAuth(req, res, db);
+    if (!auth) {
+      return;
+    }
+
+    const contentTypeHeader = req.headers["content-type"];
+    const rawContentType = Array.isArray(contentTypeHeader) ? contentTypeHeader[0] : contentTypeHeader;
+    const contentType = rawContentType?.split(";")[0]?.trim().toLowerCase() ?? "";
+    if (!contentType.startsWith("image/")) {
+      writeJson(res, 400, { error: "content_type_must_be_image" });
+      return;
+    }
+
+    const fileNameHeader = req.headers["x-file-name"];
+    const originalFilename =
+      (Array.isArray(fileNameHeader) ? fileNameHeader[0] : fileNameHeader)?.trim() || "upload.jpg";
+
+    let payload: Buffer;
+    try {
+      payload = await readBinaryBody(req, config.maxMediaUploadBytes);
+    } catch (error) {
+      writeJson(res, 413, {
+        error: "payload_too_large",
+        message: error instanceof Error ? error.message : "payload too large"
+      });
+      return;
+    }
+
+    if (payload.length === 0) {
+      writeJson(res, 400, { error: "empty_payload" });
+      return;
+    }
+
+    try {
+      const storedObject = await storageAdapter.putMediaObject({
+        ownerUserId: auth.user.id,
+        originalFilename,
+        mimeType: contentType,
+        bytes: payload
+      });
+
+      const asset = db.createMediaAsset({
+        ownerUserId: auth.user.id,
+        storageDriver: config.storageDriver,
+        storageKey: storedObject.storageKey,
+        mimeType: storedObject.mimeType,
+        originalFilename: storedObject.originalFilename,
+        byteSize: storedObject.byteSize
+      });
+
+      writeJson(res, 201, {
+        id: asset.id,
+        contentPath: `/api/media/${asset.id}/content`,
+        mimeType: asset.mimeType,
+        originalFilename: asset.originalFilename,
+        byteSize: asset.byteSize
+      });
+    } catch (error) {
+      writeJson(res, 500, {
+        error: "media_upload_failed",
+        message: error instanceof Error ? error.message : "media upload failed"
+      });
+    }
+  });
+
+  router.register("GET", "/api/media/:mediaId/content", async ({ req, res, params }) => {
+    const auth = requireAuth(req, res, db);
+    if (!auth) {
+      return;
+    }
+
+    const mediaId = params.mediaId;
+    if (!mediaId) {
+      writeJson(res, 400, { error: "media_id_required" });
+      return;
+    }
+
+    const asset = db.getMediaAssetById(mediaId);
+    if (!asset) {
+      writeJson(res, 404, { error: "media_not_found" });
+      return;
+    }
+
+    try {
+      const mediaObject = await storageAdapter.getMediaObject(asset.storageKey);
+      writeBinary(res, 200, mediaObject.bytes, asset.mimeType);
+    } catch (error) {
+      writeJson(res, 500, {
+        error: "media_read_failed",
+        message: error instanceof Error ? error.message : "media read failed"
+      });
+    }
   });
 
   router.register("POST", "/api/artworks", async ({ req, res }) => {
