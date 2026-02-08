@@ -709,7 +709,11 @@ export class BrushloopDatabase {
     };
   }
 
-  submitTurn(artworkId: Id, actorUserId: Id): TurnState {
+  submitTurn(
+    artworkId: Id,
+    actorUserId: Id,
+    completionReason: "submitted" | "expired" = "submitted"
+  ): TurnState {
     const mode = this.getArtworkMode(artworkId);
     if (!mode || mode.mode !== "turn_based") {
       throw new Error("artwork is not turn-based");
@@ -778,7 +782,7 @@ export class BrushloopDatabase {
            SET completed_at = ?, completion_reason = ?
            WHERE id = ?`
         )
-        .run(now, "submitted", currentTurn.id);
+        .run(now, completionReason, currentTurn.id);
 
       this.db
         .prepare(
@@ -844,7 +848,7 @@ export class BrushloopDatabase {
       throw new Error("no active turn to expire");
     }
 
-    return this.submitTurn(artworkId, currentTurn.active_participant_user_id);
+    return this.submitTurn(artworkId, currentTurn.active_participant_user_id, "expired");
   }
 
   createSnapshot(artworkId: Id, reason: "turn_submitted" | "periodic" | "manual", stateJson: string): number {

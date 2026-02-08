@@ -13,6 +13,9 @@ import { loadConfig } from "./config.ts";
 import { BrushloopDatabase } from "./db/database.ts";
 import { Router } from "./http/router.ts";
 import { applyCors, readJsonBody, writeJson } from "./http/utils.ts";
+import { NotificationDispatcher } from "./notifications/dispatcher.ts";
+import { LocalNotificationAdapter } from "./notifications/local-adapter.ts";
+import { TurnExpiryWorker } from "./turns/expiry-worker.ts";
 
 interface AppServer {
   start: () => Promise<void>;
@@ -27,6 +30,24 @@ export function createAppServer(): AppServer {
   const config = loadConfig();
   const db = new BrushloopDatabase(config.sqlitePath);
   const collaborationHub = new CollaborationHub(db);
+  const notificationDispatcher = new NotificationDispatcher(
+    db,
+    new LocalNotificationAdapter(config.notificationLogPath),
+    config.notificationDispatchIntervalMs
+  );
+  const turnExpiryWorker = new TurnExpiryWorker({
+    db,
+    intervalMs: config.turnExpiryCheckIntervalMs,
+    snapshotEveryTurns: config.snapshotEveryTurns,
+    onTurnAdvanced: (turn) => {
+      collaborationHub.broadcastTurnAdvanced(
+        turn.artworkId,
+        turn.activeParticipantUserId,
+        turn.turnNumber,
+        turn.dueAt
+      );
+    }
+  });
   const router = new Router();
 
   router.register("GET", "/health", ({ res }) => {
@@ -204,6 +225,10 @@ export function createAppServer(): AppServer {
       });
 
       if (details.currentTurn) {
+        if (config.snapshotEveryTurns > 0 && details.currentTurn.turnNumber % config.snapshotEveryTurns === 0) {
+          db.createSnapshot(details.artwork.id, "periodic", JSON.stringify({}));
+        }
+
         db.createNotification({
           userId: details.currentTurn.activeParticipantUserId,
           artworkId: details.artwork.id,
@@ -273,12 +298,15 @@ export function createAppServer(): AppServer {
     try {
       const nextTurn = db.submitTurn(payload.artworkId, auth.user.id);
       db.createSnapshot(payload.artworkId, "turn_submitted", JSON.stringify({}));
+      if (config.snapshotEveryTurns > 0 && nextTurn.turnNumber % config.snapshotEveryTurns === 0) {
+        db.createSnapshot(payload.artworkId, "periodic", JSON.stringify({}));
+      }
       db.createNotification({
         userId: nextTurn.activeParticipantUserId,
         artworkId: payload.artworkId,
         type: "turn_started",
         payloadJson: JSON.stringify({ artworkId: payload.artworkId, turnNumber: nextTurn.turnNumber }),
-        channel: "in_app"
+        channel: "native_push"
       });
       collaborationHub.broadcastTurnAdvanced(
         payload.artworkId,
@@ -336,8 +364,12 @@ export function createAppServer(): AppServer {
           resolve();
         });
       });
+      notificationDispatcher.start();
+      turnExpiryWorker.start();
     },
     stop: async () => {
+      notificationDispatcher.stop();
+      turnExpiryWorker.stop();
       await new Promise<void>((resolve, reject) => {
         httpServer.close((error) => {
           if (error) {
