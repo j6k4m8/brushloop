@@ -1284,6 +1284,7 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
   }
 
   Widget _buildCanvas(ArtworkDetails details) {
+    final strokesSnapshot = List<CanvasStroke>.of(_strokes, growable: false);
     final visibleLayerIds = details.layers
         .where((layer) => layer.isVisible)
         .map((layer) => layer.id)
@@ -1360,7 +1361,7 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
                               ),
                             ),
                           DrawingCanvas(
-                            strokes: _strokes,
+                            strokes: strokesSnapshot,
                             activeStroke: _activeStroke,
                             visibleLayerIds: visibleLayerIds,
                             layerOrder: layerOrder,
