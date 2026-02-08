@@ -1,4 +1,5 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import type { Socket } from "node:net";
 
 import {
   parseCreateArtworkRequest,
@@ -54,6 +55,7 @@ export function createAppServer(): AppServer {
     }
   });
   const router = new Router();
+  const activeSockets = new Set<Socket>();
 
   router.register("GET", "/health", ({ res }) => {
     writeJson(res, 200, {
@@ -687,6 +689,13 @@ export function createAppServer(): AppServer {
     }
   });
 
+  httpServer.on("connection", (socket) => {
+    activeSockets.add(socket);
+    socket.on("close", () => {
+      activeSockets.delete(socket);
+    });
+  });
+
   httpServer.on("upgrade", (req, socket, head) => {
     const requestPath = (req.url ?? "").split("?")[0];
     if (requestPath !== "/ws") {
@@ -712,6 +721,10 @@ export function createAppServer(): AppServer {
     stop: async () => {
       notificationDispatcher.stop();
       turnExpiryWorker.stop();
+      for (const socket of activeSockets) {
+        socket.destroy();
+      }
+      activeSockets.clear();
       await new Promise<void>((resolve, reject) => {
         httpServer.close((error) => {
           if (error) {
