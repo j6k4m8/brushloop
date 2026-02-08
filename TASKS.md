@@ -39,4 +39,4 @@
 - [x] Task 37: Harden media picker behavior across platforms (camera capability guardrails, gallery timeout/errors, shared picker utility).
 - [ ] Task 38: Add image import + object select workflow (alpha-preserving image layers with move/scale/rotate transforms).
 - [x] Task 39: Fix gallery picker hang on desktop/macOS with robust platform-specific picker and entitlements.
-- [T] Task 40: Fix create-artwork contact dropdown crash by using stable contact IDs and deduped contact options.
+- [x] Task 40: Fix create-artwork contact dropdown crash by using stable contact IDs and deduped contact options.
