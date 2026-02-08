@@ -43,4 +43,4 @@
 - [x] Task 41: Fix canvas repaint consistency so realtime operations and undo render immediately across clients.
 - [x] Task 42: Implement collaborative undo/redo sync by broadcasting stroke remove/add operations over websocket.
 - [x] Task 43: Restrict undo/redo to current user's strokes only in collaborative sessions.
-- [T] Task 44: Persist authenticated sessions across app restarts and browser refresh with startup restore.
+- [x] Task 44: Persist authenticated sessions across app restarts and browser refresh with startup restore.
