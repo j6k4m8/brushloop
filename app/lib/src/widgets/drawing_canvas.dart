@@ -62,6 +62,9 @@ class DrawingCanvas extends StatelessWidget {
     required this.onPanStart,
     required this.onPanUpdate,
     required this.onPanEnd,
+    required this.onScaleStart,
+    required this.onScaleUpdate,
+    required this.onScaleEnd,
   });
 
   /// Persisted strokes.
@@ -88,6 +91,15 @@ class DrawingCanvas extends StatelessWidget {
   /// End gesture callback.
   final GestureDragEndCallback onPanEnd;
 
+  /// Scale gesture start callback.
+  final GestureScaleStartCallback onScaleStart;
+
+  /// Scale gesture update callback.
+  final GestureScaleUpdateCallback onScaleUpdate;
+
+  /// Scale gesture end callback.
+  final GestureScaleEndCallback onScaleEnd;
+
   @override
   Widget build(BuildContext context) {
     final sortedLayerIds = visibleLayerIds.toList()
@@ -97,6 +109,9 @@ class DrawingCanvas extends StatelessWidget {
       onPanStart: canEdit ? onPanStart : null,
       onPanUpdate: canEdit ? onPanUpdate : null,
       onPanEnd: canEdit ? onPanEnd : null,
+      onScaleStart: canEdit ? onScaleStart : null,
+      onScaleUpdate: canEdit ? onScaleUpdate : null,
+      onScaleEnd: canEdit ? onScaleEnd : null,
       child: SizedBox.expand(
         child: Stack(
           fit: StackFit.expand,

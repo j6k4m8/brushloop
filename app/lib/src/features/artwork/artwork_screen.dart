@@ -53,6 +53,8 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
   bool _viewportNeedsFit = true;
   double _minViewportScale = 0.1;
   double _maxViewportScale = 8;
+  bool _pinchSizingActive = false;
+  double _pinchInitialBrushSize = 8;
 
   CollaborationSocket? _socket;
   StreamSubscription<Map<String, dynamic>>? _messageSubscription;
@@ -141,6 +143,10 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
   }
 
   void _onPanStart(DragStartDetails details) {
+    if (_pinchSizingActive) {
+      return;
+    }
+
     if (_tool == _EditorTool.eyedropper) {
       unawaited(_sampleColorAt(details.localPosition));
       return;
@@ -178,6 +184,10 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
   }
 
   void _onPanUpdate(DragUpdateDetails details) {
+    if (_pinchSizingActive) {
+      return;
+    }
+
     final activeStroke = _activeStroke;
     if (activeStroke == null) {
       return;
@@ -204,6 +214,10 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
   }
 
   void _onPanEnd(DragEndDetails _) {
+    if (_pinchSizingActive) {
+      return;
+    }
+
     final activeStroke = _activeStroke;
     if (activeStroke == null) {
       return;
@@ -216,6 +230,47 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
     });
 
     _sendStrokeOperation(activeStroke);
+  }
+
+  void _onScaleStart(ScaleStartDetails details) {
+    _pinchInitialBrushSize = _brushSize;
+    _pinchSizingActive = false;
+  }
+
+  void _onScaleUpdate(ScaleUpdateDetails details) {
+    if (_tool != _EditorTool.brush && _tool != _EditorTool.eraser) {
+      return;
+    }
+
+    if (details.pointerCount < 2) {
+      return;
+    }
+
+    if (!_pinchSizingActive) {
+      setState(() {
+        _pinchSizingActive = true;
+        _activeStroke = null;
+      });
+    }
+
+    final updatedSize = (_pinchInitialBrushSize * details.scale).clamp(2.0, 36.0);
+    if ((updatedSize - _brushSize).abs() < 0.01) {
+      return;
+    }
+
+    setState(() {
+      _brushSize = updatedSize;
+    });
+  }
+
+  void _onScaleEnd(ScaleEndDetails details) {
+    if (!_pinchSizingActive) {
+      return;
+    }
+
+    setState(() {
+      _pinchSizingActive = false;
+    });
   }
 
   void _sendStrokeOperation(CanvasStroke stroke) {
@@ -1117,6 +1172,9 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
                             onPanStart: _onPanStart,
                             onPanUpdate: _onPanUpdate,
                             onPanEnd: _onPanEnd,
+                            onScaleStart: _onScaleStart,
+                            onScaleUpdate: _onScaleUpdate,
+                            onScaleEnd: _onScaleEnd,
                           ),
                         ],
                       ),

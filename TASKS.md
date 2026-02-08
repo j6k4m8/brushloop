@@ -26,3 +26,4 @@
 - [x] Task 24: Replace editor tools with top control strip and full color picker dialog.
 - [x] Task 25: Add visual package-based color picker and eyedropper tool to editor.
 - [x] Task 26: Add pan/zoom navigation tool and fit-to-viewport canvas behavior.
+- [T] Task 27: Support pinch-to-resize brush while using brush or eraser tools.
