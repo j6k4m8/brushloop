@@ -1,15 +1,16 @@
 {
-	# Set email for Let's Encrypt account if needed.
-	# email you@example.com
+	# optional but explicit
+	auto_https off
 }
 
-{$WEB_DOMAIN} {
+http://{$WEB_DOMAIN} {
 	encode zstd gzip
 	root * /srv/flutter-web
 	try_files {path} /index.html
 	file_server
 }
 
-{$API_DOMAIN} {
+http://{$API_DOMAIN} {
 	reverse_proxy api:8787
 }
+
