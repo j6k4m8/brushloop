@@ -52,3 +52,4 @@
 - [x] Task 50: Add Dockerized Flutter web build step to deployment so host nodes do not need Flutter installed.
 - [x] Task 51: Build and publish deployable API/edge images to GHCR and switch deployment to pull prebuilt containers.
 - [x] Task 52: Rename app identifiers to com.matelsky.brushloop and update app display names from default "app".
+- [T] Task 53: Default app API base URL to deployed production endpoint while preserving dart-define override behavior.
