@@ -115,45 +115,45 @@ jobs:
           name: brushloop-android
           path: BrushLoop-android.apk
 
-  build-linux:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+  # build-linux:
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v4
 
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            clang \
-            cmake \
-            ninja-build \
-            pkg-config \
-            libgtk-3-dev \
-            liblzma-dev
+  #     - name: Install system dependencies
+  #       run: |
+  #         sudo apt-get update
+  #         sudo apt-get install -y \
+  #           clang \
+  #           cmake \
+  #           ninja-build \
+  #           pkg-config \
+  #           libgtk-3-dev \
+  #           liblzma-dev
 
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-          cache: true
+  #     - name: Set up Flutter
+  #       uses: subosito/flutter-action@v2
+  #       with:
+  #         channel: stable
+  #         cache: true
 
-      - name: Install dependencies
-        run: flutter pub get
-        working-directory: app
+  #     - name: Install dependencies
+  #       run: flutter pub get
+  #       working-directory: app
 
-      - name: Build Linux bundle
-        run: flutter build linux --release
-        working-directory: app
+  #     - name: Build Linux bundle
+  #       run: flutter build linux --release
+  #       working-directory: app
 
-      - name: Package bundle
-        run: tar -czf BrushLoop-linux.tar.gz -C app/build/linux/x64/release/bundle .
+  #     - name: Package bundle
+  #       run: tar -czf BrushLoop-linux.tar.gz -C app/build/linux/x64/release/bundle .
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: brushloop-linux
-          path: BrushLoop-linux.tar.gz
+  #     - name: Upload artifact
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: brushloop-linux
+  #         path: BrushLoop-linux.tar.gz
 
   publish-release:
     if: startsWith(github.ref, 'refs/tags/')
