@@ -51,4 +51,4 @@
 - [x] Task 49: Serve Flutter web build at web domain and centralize domains into a single deployment config file.
 - [x] Task 50: Add Dockerized Flutter web build step to deployment so host nodes do not need Flutter installed.
 - [x] Task 51: Build and publish deployable API/edge images to GHCR and switch deployment to pull prebuilt containers.
-- [T] Task 52: Rename app identifiers to com.matelsky.brushloop and update app display names from default "app".
+- [x] Task 52: Rename app identifiers to com.matelsky.brushloop and update app display names from default "app".
