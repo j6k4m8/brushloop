@@ -55,4 +55,4 @@
 - [x] Task 53: Default app API base URL to deployed production endpoint while preserving dart-define override behavior.
 - [x] Task 54: Fix turn-based realtime desync by hardening WebSocket send failure handling and preventing broadcast aborts.
 - [x] Task 55: Fix base-photo rendering by supporting tokenized media URLs for mobile/web image loading.
-- [T] Task 56: Support single-tap dot strokes in brush mode without requiring drag input.
+- [x] Task 56: Support single-tap dot strokes in brush mode without requiring drag input.
