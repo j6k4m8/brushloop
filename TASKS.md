@@ -56,4 +56,4 @@
 - [x] Task 54: Fix turn-based realtime desync by hardening WebSocket send failure handling and preventing broadcast aborts.
 - [x] Task 55: Fix base-photo rendering by supporting tokenized media URLs for mobile/web image loading.
 - [x] Task 56: Support single-tap dot strokes in brush mode without requiring drag input.
-- [T] Task 57: Increase maximum brush size to 2x current range while keeping minimum size unchanged.
+- [x] Task 57: Increase maximum brush size to 2x current range while keeping minimum size unchanged.
