@@ -53,4 +53,4 @@
 - [x] Task 51: Build and publish deployable API/edge images to GHCR and switch deployment to pull prebuilt containers.
 - [x] Task 52: Rename app identifiers to com.matelsky.brushloop and update app display names from default "app".
 - [x] Task 53: Default app API base URL to deployed production endpoint while preserving dart-define override behavior.
-- [T] Task 54: Fix turn-based realtime desync by hardening WebSocket send failure handling and preventing broadcast aborts.
+- [x] Task 54: Fix turn-based realtime desync by hardening WebSocket send failure handling and preventing broadcast aborts.
