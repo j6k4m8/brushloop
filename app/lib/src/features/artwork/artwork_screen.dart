@@ -33,6 +33,9 @@ class ArtworkScreen extends StatefulWidget {
 }
 
 class _ArtworkScreenState extends State<ArtworkScreen> {
+  static const double _minBrushSize = 2;
+  static const double _maxBrushSize = 72;
+
   ArtworkDetails? _details;
   String? _selectedLayerId;
   bool _loading = true;
@@ -214,7 +217,7 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
       }
 
       final updatedSize =
-          (_pinchInitialBrushSize * details.scale).clamp(2.0, 36.0).toDouble();
+          (_pinchInitialBrushSize * details.scale).clamp(_minBrushSize, _maxBrushSize).toDouble();
       _setBrushSizeAndPreview(
         updatedSize,
         localPosition: details.localFocalPoint,
@@ -1196,8 +1199,8 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
               width: 180,
               child: Slider(
                 value: _brushSize,
-                min: 2,
-                max: 36,
+                min: _minBrushSize,
+                max: _maxBrushSize,
                 onChanged: (value) {
                   _setBrushSizeAndPreview(
                     value,
@@ -1534,7 +1537,7 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
 
   /// Builds a translucent circle preview that reflects current brush diameter.
   Widget _buildBrushSizePreviewOverlay(Size artworkSize) {
-    final diameter = _brushSize.clamp(2.0, 36.0).toDouble();
+    final diameter = _brushSize.clamp(_minBrushSize, _maxBrushSize).toDouble();
     final fallback = Offset(artworkSize.width / 2, artworkSize.height / 2);
     final center = _brushPreviewPosition ?? fallback;
     final left = (center.dx - diameter / 2)
