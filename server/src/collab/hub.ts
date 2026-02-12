@@ -287,7 +287,14 @@ export class CollaborationHub {
   }
 
   private send(connection: WebSocketConnection, payload: CollaborationServerMessage): void {
-    connection.sendJson(payload);
+    try {
+      connection.sendJson(payload);
+    } catch (error) {
+      if (!isBenignSocketWriteError(error)) {
+        console.error("WebSocket send failed:", error);
+      }
+      connection.close();
+    }
   }
 
   private sendError(connection: WebSocketConnection, code: string, message: string): void {
@@ -318,4 +325,9 @@ export class CollaborationHub {
 
     this.contexts.delete(connection);
   }
+}
+
+function isBenignSocketWriteError(error: unknown): boolean {
+  const code = typeof error === "object" && error !== null && "code" in error ? (error as { code?: string }).code : undefined;
+  return code === "EPIPE" || code === "ECONNRESET" || code === "ERR_STREAM_DESTROYED";
 }

@@ -46,7 +46,7 @@ export class WebSocketConnection extends EventEmitter {
     }
 
     const payload = Buffer.from(text, "utf8");
-    this.socket.write(encodeFrame(0x1, payload));
+    this.writeFrame(encodeFrame(0x1, payload));
   }
 
   close(): void {
@@ -57,10 +57,11 @@ export class WebSocketConnection extends EventEmitter {
     this.closed = true;
     try {
       this.socket.write(encodeFrame(0x8, Buffer.alloc(0)));
-    } finally {
-      this.socket.destroy();
-      this.emit("close");
+    } catch {
+      // Ignore close-frame write failures. The socket is already unusable.
     }
+    this.socket.destroy();
+    this.emit("close");
   }
 
   private handleData(chunk: Buffer): void {
@@ -86,12 +87,27 @@ export class WebSocketConnection extends EventEmitter {
         this.close();
         break;
       case 0x9:
-        this.socket.write(encodeFrame(0xa, frame.payload));
+        this.writeFrame(encodeFrame(0xa, frame.payload));
         break;
       case 0xa:
         break;
       default:
         this.emit("error", new Error(`unsupported opcode ${frame.opcode}`));
+    }
+  }
+
+  private writeFrame(frame: Buffer): void {
+    if (this.closed) {
+      return;
+    }
+
+    try {
+      this.socket.write(frame);
+    } catch (error) {
+      if (!isBenignSocketWriteError(error)) {
+        this.emit("error", error);
+      }
+      this.close();
     }
   }
 }
@@ -178,4 +194,9 @@ export function tryDecodeFrame(buffer: Buffer): { frame: Frame; consumedBytes: n
     },
     consumedBytes: offset + payloadLength
   };
+}
+
+function isBenignSocketWriteError(error: unknown): boolean {
+  const code = typeof error === "object" && error !== null && "code" in error ? (error as { code?: string }).code : undefined;
+  return code === "EPIPE" || code === "ECONNRESET" || code === "ERR_STREAM_DESTROYED";
 }
