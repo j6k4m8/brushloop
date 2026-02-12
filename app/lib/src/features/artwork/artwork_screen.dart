@@ -152,7 +152,36 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
 
     if (_tool == _EditorTool.eyedropper) {
       unawaited(_sampleColorAt(details.localFocalPoint));
+      return;
     }
+
+    if (_tool != _EditorTool.brush && _tool != _EditorTool.eraser) {
+      return;
+    }
+
+    final layerId = _resolveEditableLayerId();
+    if (layerId == null) {
+      return;
+    }
+
+    setState(() {
+      _activeStroke = CanvasStroke(
+        id: _newStrokeId(),
+        layerId: layerId,
+        actorUserId: widget.controller.session?.user.id ?? '',
+        color: _tool == _EditorTool.eraser
+            ? const Color(0x00000000)
+            : _brushColor,
+        size: _brushSize,
+        points: <CanvasStrokePoint>[
+          CanvasStrokePoint(
+            x: details.localFocalPoint.dx,
+            y: details.localFocalPoint.dy,
+          ),
+        ],
+        isEraser: _tool == _EditorTool.eraser,
+      );
+    });
   }
 
   void _onScaleUpdate(ScaleUpdateDetails details) {
@@ -160,23 +189,19 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
       return;
     }
 
-    final layerId = _selectedLayerId;
-    if (!_canEdit || layerId == null) {
-      return;
-    }
-
-    final layer = _details?.layers.firstWhere((item) => item.id == layerId);
-    if (layer == null || layer.isLocked) {
+    final layerId = _resolveEditableLayerId();
+    if (layerId == null) {
       return;
     }
 
     if (details.pointerCount >= 2) {
       final strokeToCommit = !_pinchSizingActive ? _activeStroke : null;
+      final shouldCommitStroke = strokeToCommit != null && strokeToCommit.points.length > 1;
       setState(() {
         if (!_pinchSizingActive) {
           _pinchSizingActive = true;
           _pinchInitialBrushSize = _brushSize;
-          if (strokeToCommit != null) {
+          if (shouldCommitStroke) {
             _upsertStroke(strokeToCommit);
             _redoBuffer.clear();
           }
@@ -184,7 +209,7 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
         _activeStroke = null;
       });
 
-      if (strokeToCommit != null) {
+      if (shouldCommitStroke) {
         _sendStrokeOperation(strokeToCommit);
       }
 
@@ -269,6 +294,26 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
       _pinchSizingActive = false;
     });
     _scheduleBrushPreviewHide();
+  }
+
+  String? _resolveEditableLayerId() {
+    if (!_canEdit) {
+      return null;
+    }
+
+    final details = _details;
+    final selectedLayerId = _selectedLayerId;
+    if (details == null || selectedLayerId == null) {
+      return null;
+    }
+
+    for (final layer in details.layers) {
+      if (layer.id == selectedLayerId) {
+        return layer.isLocked ? null : selectedLayerId;
+      }
+    }
+
+    return null;
   }
 
   /// Returns the current logical artwork size in canvas coordinates.
