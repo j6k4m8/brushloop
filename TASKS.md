@@ -54,3 +54,4 @@
 - [x] Task 52: Rename app identifiers to com.matelsky.brushloop and update app display names from default "app".
 - [x] Task 53: Default app API base URL to deployed production endpoint while preserving dart-define override behavior.
 - [x] Task 54: Fix turn-based realtime desync by hardening WebSocket send failure handling and preventing broadcast aborts.
+- [T] Task 55: Fix base-photo rendering by supporting tokenized media URLs for mobile/web image loading.

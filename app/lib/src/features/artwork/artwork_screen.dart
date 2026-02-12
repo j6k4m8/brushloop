@@ -1451,12 +1451,11 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
                           if (details.artwork.basePhotoPath case final photoPath?)
                             IgnorePointer(
                               child: Image.network(
-                                _resolveMediaUrl(photoPath),
+                                _resolveMediaUrl(
+                                  photoPath,
+                                  includeAuthToken: true,
+                                ),
                                 fit: BoxFit.cover,
-                                headers: <String, String>{
-                                  if (widget.controller.session case final session?)
-                                    'Authorization': 'Bearer ${session.token}',
-                                },
                                 errorBuilder: (context, error, stackTrace) {
                                   return const SizedBox.shrink();
                                 },
@@ -1539,16 +1538,38 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
       ..scaleByDouble(scale, scale, 1, 1);
   }
 
-  String _resolveMediaUrl(String pathOrUrl) {
+  String _resolveMediaUrl(
+    String pathOrUrl, {
+    bool includeAuthToken = false,
+  }) {
     if (pathOrUrl.startsWith('http://') || pathOrUrl.startsWith('https://')) {
-      return pathOrUrl;
+      return includeAuthToken
+          ? _appendSessionToken(pathOrUrl)
+          : pathOrUrl;
     }
 
     final base = AppConfig.apiBaseUrl.endsWith('/')
         ? AppConfig.apiBaseUrl.substring(0, AppConfig.apiBaseUrl.length - 1)
         : AppConfig.apiBaseUrl;
     final suffix = pathOrUrl.startsWith('/') ? pathOrUrl : '/$pathOrUrl';
-    return '$base$suffix';
+    final resolved = '$base$suffix';
+    return includeAuthToken ? _appendSessionToken(resolved) : resolved;
+  }
+
+  String _appendSessionToken(String url) {
+    final token = widget.controller.session?.token;
+    if (token == null || token.isEmpty) {
+      return url;
+    }
+
+    final uri = Uri.parse(url);
+    if (uri.queryParameters.containsKey('token')) {
+      return url;
+    }
+
+    final queryParameters = Map<String, String>.from(uri.queryParameters);
+    queryParameters['token'] = token;
+    return uri.replace(queryParameters: queryParameters).toString();
   }
 
   Widget _buildControlsPanel(ArtworkDetails details) {

@@ -413,7 +413,7 @@ export function createAppServer(): AppServer {
   });
 
   router.register("GET", "/api/media/:mediaId/content", async ({ req, res, params }) => {
-    const auth = requireAuth(req, res, db);
+    const auth = requireAuth(req, res, db, { allowQueryToken: true });
     if (!auth) {
       return;
     }
@@ -740,20 +740,24 @@ export function createAppServer(): AppServer {
   };
 }
 
-function requireAuth(req: IncomingMessage, res: ServerResponse, db: BrushloopDatabase): {
+function requireAuth(
+  req: IncomingMessage,
+  res: ServerResponse,
+  db: BrushloopDatabase,
+  options?: { allowQueryToken?: boolean }
+): {
   user: {
     id: string;
     email: string;
     displayName: string;
   };
 } | null {
-  const header = req.headers.authorization;
-  if (!header || !header.startsWith("Bearer ")) {
+  const token = readAuthToken(req, Boolean(options?.allowQueryToken));
+  if (!token) {
     writeJson(res, 401, { error: "missing_or_invalid_authorization_header" });
     return null;
   }
 
-  const token = header.slice("Bearer ".length).trim();
   const session = db.getSession(token);
   if (!session) {
     writeJson(res, 401, { error: "invalid_or_expired_session" });
@@ -773,4 +777,23 @@ function requireAuth(req: IncomingMessage, res: ServerResponse, db: BrushloopDat
       displayName: user.displayName
     }
   };
+}
+
+function readAuthToken(req: IncomingMessage, allowQueryToken: boolean): string | null {
+  const header = req.headers.authorization;
+  if (header && header.startsWith("Bearer ")) {
+    const token = header.slice("Bearer ".length).trim();
+    if (token.length > 0) {
+      return token;
+    }
+  }
+
+  if (!allowQueryToken) {
+    return null;
+  }
+
+  const base = `http://${req.headers.host ?? "localhost"}`;
+  const url = new URL(req.url ?? "/", base);
+  const token = url.searchParams.get("token")?.trim();
+  return token && token.length > 0 ? token : null;
 }
