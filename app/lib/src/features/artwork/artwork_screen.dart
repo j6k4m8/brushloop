@@ -9,6 +9,7 @@ import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 
 import '../../core/app_config.dart';
 import '../../core/models.dart';
+import 'artwork_exit_guard.dart';
 import 'collaboration_operation_tracker.dart';
 import '../../network/collaboration_socket.dart';
 import '../../state/app_controller.dart';
@@ -75,6 +76,8 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
   StreamSubscription<Map<String, dynamic>>? _messageSubscription;
   bool _collaborationReady = false;
   bool _disposed = false;
+  bool _handlingExitRequest = false;
+  bool _allowImmediatePop = false;
 
   @override
   void initState() {
@@ -615,6 +618,106 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
     });
 
     _sendStrokeOperation(activeStroke);
+  }
+
+  Future<bool> _resolveExitRequest() async {
+    if (_handlingExitRequest) {
+      return false;
+    }
+
+    _handlingExitRequest = true;
+    try {
+      return await resolveArtworkExit(
+        finalizePendingStroke: () {
+          if (!_disposed) {
+            _finalizeActiveStrokeIfNeeded();
+          }
+        },
+        hasPendingOperations: () => _operationTracker.hasPendingOperations,
+        pendingCount: () => _operationTracker.pendingCount,
+        collaborationReady: () => _collaborationReady,
+        waitForSync: _waitForPendingOperationsSync,
+        confirmDiscard: _confirmDiscardUnsyncedChanges,
+      );
+    } finally {
+      _handlingExitRequest = false;
+    }
+  }
+
+  Future<void> _requestPop() async {
+    if (_allowImmediatePop) {
+      return;
+    }
+
+    final shouldPop = await _resolveExitRequest();
+    if (!mounted || !shouldPop) {
+      return;
+    }
+
+    setState(() {
+      _allowImmediatePop = true;
+    });
+    final didPop = await Navigator.of(context).maybePop();
+    if (!didPop && mounted) {
+      setState(() {
+        _allowImmediatePop = false;
+      });
+    }
+  }
+
+  Future<bool> _confirmDiscardUnsyncedChanges(ArtworkExitPrompt prompt) async {
+    if (!mounted) {
+      return false;
+    }
+
+    final shouldDiscard = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return Dialog(
+          child: StudioPanel(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                Text(
+                  prompt.title,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  prompt.message,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: StudioPalette.textMuted,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: <Widget>[
+                    StudioButton(
+                      label: 'Stay',
+                      onPressed: () => Navigator.of(dialogContext).pop(false),
+                    ),
+                    const SizedBox(width: 8),
+                    StudioButton(
+                      label: 'Discard & Leave',
+                      onPressed: () => Navigator.of(dialogContext).pop(true),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    return shouldDiscard == true;
   }
 
   Future<void> _renameArtworkTitle(ArtworkDetails details) async {
@@ -1264,58 +1367,68 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
   Widget build(BuildContext context) {
     final details = _details;
 
-    return Scaffold(
-      body: StudioBackdrop(
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(10),
-            child: _loading
-                ? const Center(child: CircularProgressIndicator())
-                : _error != null
-                ? Center(
-                    child: Text(
-                      _error!,
-                      style: const TextStyle(color: StudioPalette.textMuted),
-                    ),
-                  )
-                : details == null
-                ? const Center(
-                    child: Text(
-                      'Artwork details unavailable',
-                      style: TextStyle(color: StudioPalette.textMuted),
-                    ),
-                  )
-                : LayoutBuilder(
-                    builder: (context, constraints) {
-                      final wideLayout = constraints.maxWidth >= 1120;
+    return PopScope<Object?>(
+      canPop: _allowImmediatePop,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop || _allowImmediatePop) {
+          return;
+        }
 
-                      return Column(
-                        children: <Widget>[
-                          _buildTopToolbar(
-                            details,
-                            showInspectorToggle: !wideLayout,
-                          ),
-                          const SizedBox(height: 6),
-                          _buildQuickToolRow(),
-                          const SizedBox(height: 6),
-                          Expanded(
-                            child: wideLayout
-                                ? Row(
-                                    children: <Widget>[
-                                      Expanded(child: _buildCanvas(details)),
-                                      const SizedBox(width: 8),
-                                      SizedBox(
-                                        width: 300,
-                                        child: _buildControlsPanel(details),
-                                      ),
-                                    ],
-                                  )
-                                : _buildMobileWorkspace(details),
-                          ),
-                        ],
-                      );
-                    },
-                  ),
+        unawaited(_requestPop());
+      },
+      child: Scaffold(
+        body: StudioBackdrop(
+          child: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(10),
+              child: _loading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _error != null
+                  ? Center(
+                      child: Text(
+                        _error!,
+                        style: const TextStyle(color: StudioPalette.textMuted),
+                      ),
+                    )
+                  : details == null
+                  ? const Center(
+                      child: Text(
+                        'Artwork details unavailable',
+                        style: TextStyle(color: StudioPalette.textMuted),
+                      ),
+                    )
+                  : LayoutBuilder(
+                      builder: (context, constraints) {
+                        final wideLayout = constraints.maxWidth >= 1120;
+
+                        return Column(
+                          children: <Widget>[
+                            _buildTopToolbar(
+                              details,
+                              showInspectorToggle: !wideLayout,
+                            ),
+                            const SizedBox(height: 6),
+                            _buildQuickToolRow(),
+                            const SizedBox(height: 6),
+                            Expanded(
+                              child: wideLayout
+                                  ? Row(
+                                      children: <Widget>[
+                                        Expanded(child: _buildCanvas(details)),
+                                        const SizedBox(width: 8),
+                                        SizedBox(
+                                          width: 300,
+                                          child: _buildControlsPanel(details),
+                                        ),
+                                      ],
+                                    )
+                                  : _buildMobileWorkspace(details),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+            ),
           ),
         ),
       ),
@@ -1349,7 +1462,7 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
           StudioIconButton(
             icon: Icons.arrow_back,
             tooltip: 'Back',
-            onPressed: () => Navigator.of(context).maybePop(),
+            onPressed: _requestPop,
           ),
           const SizedBox(width: 10),
           Expanded(

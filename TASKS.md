@@ -59,3 +59,4 @@
 - [x] Task 57: Increase maximum brush size to 2x current range while keeping minimum size unchanged.
 - [x] Task 58: Prevent turn submission from dropping unsaved drawing operations and harden turn-based persistence.
 - [x] Task 59: Replace empty collaboration snapshots with real persisted artwork state and regression tests.
+- [T] Task 60: Guard artwork exit so unsynced local changes cannot be lost silently.
