@@ -13,9 +13,11 @@ import type {
   Id,
   Layer,
   NotificationRecord,
+  StrokePayload,
   TurnState,
   UserRecord,
-  UserSession
+  UserSession,
+  VectorPoint
 } from "../../../packages/shared/src/index.ts";
 import { SCHEMA_SQL } from "./schema.ts";
 
@@ -78,6 +80,23 @@ export interface MediaAssetRecord {
   originalFilename: string;
   byteSize: number;
   createdAt: string;
+}
+
+export interface SnapshotStrokeState {
+  id: Id;
+  layerId: Id;
+  actorUserId: Id;
+  tool: "brush" | "eraser";
+  color: string;
+  size: number;
+  opacity: number;
+  points: VectorPoint[];
+}
+
+export interface ArtworkStateSnapshot {
+  artworkId: Id;
+  lastLamportTs: number;
+  strokes: SnapshotStrokeState[];
 }
 
 /**
@@ -1324,6 +1343,14 @@ export class BrushloopDatabase {
     return nextVersion;
   }
 
+  createSnapshotFromCurrentState(artworkId: Id, reason: "turn_submitted" | "periodic" | "manual"): number {
+    return this.createSnapshot(
+      artworkId,
+      reason,
+      JSON.stringify(this.buildSnapshotState(artworkId))
+    );
+  }
+
   createNotification(record: Omit<NotificationRecord, "id" | "createdAt" | "deliveredAt">): NotificationRecord {
     const id = randomUUID();
     const createdAt = nowIso();
@@ -1499,6 +1526,37 @@ export class BrushloopDatabase {
     };
   }
 
+  buildSnapshotState(artworkId: Id): ArtworkStateSnapshot {
+    const operations = this.getOperationsSince(artworkId, 0);
+    const activeStrokes = new Map<Id, SnapshotStrokeState>();
+    let lastLamportTs = 0;
+
+    for (const operation of operations) {
+      lastLamportTs = Math.max(lastLamportTs, operation.lamportTs);
+
+      const removedStrokeId = getRemovedStrokeId(operation);
+      if (removedStrokeId != null) {
+        activeStrokes.delete(removedStrokeId);
+        continue;
+      }
+
+      const snapshotStroke = toSnapshotStrokeState(operation);
+      if (snapshotStroke == null) {
+        continue;
+      }
+
+      // Refresh insertion order so redo/re-add keeps the latest z-order.
+      activeStrokes.delete(snapshotStroke.id);
+      activeStrokes.set(snapshotStroke.id, snapshotStroke);
+    }
+
+    return {
+      artworkId,
+      lastLamportTs,
+      strokes: [...activeStrokes.values()]
+    };
+  }
+
   createMediaAsset(input: Omit<MediaAssetRecord, "id" | "createdAt">): MediaAssetRecord {
     const id = randomUUID();
     const createdAt = nowIso();
@@ -1612,6 +1670,86 @@ export class BrushloopDatabase {
 
 function nowIso(): string {
   return new Date().toISOString();
+}
+
+function getRemovedStrokeId(operation: CrdtOperation): Id | null {
+  if (operation.type !== "stroke.remove") {
+    return null;
+  }
+
+  const payload = operation.payload as { strokeId?: unknown };
+  return typeof payload.strokeId === "string" && payload.strokeId.length > 0
+    ? payload.strokeId
+    : null;
+}
+
+function toSnapshotStrokeState(operation: CrdtOperation): SnapshotStrokeState | null {
+  if (operation.type !== "stroke.add" && operation.type !== "stroke.erase") {
+    return null;
+  }
+
+  const payload = operation.payload;
+  if (!isStrokePayload(payload)) {
+    return null;
+  }
+
+  return {
+    id: payload.strokeId,
+    layerId: operation.layerId,
+    actorUserId: operation.actorUserId,
+    tool: operation.type === "stroke.erase" ? "eraser" : payload.tool,
+    color: payload.color,
+    size: payload.size,
+    opacity: payload.opacity,
+    points: payload.points.map((point) => ({
+      x: point.x,
+      y: point.y,
+      ...(point.pressure == null ? {} : { pressure: point.pressure })
+    }))
+  };
+}
+
+function isStrokePayload(payload: unknown): payload is StrokePayload {
+  if (typeof payload !== "object" || payload == null || Array.isArray(payload)) {
+    return false;
+  }
+
+  const candidate = payload as {
+    strokeId?: unknown;
+    tool?: unknown;
+    color?: unknown;
+    size?: unknown;
+    opacity?: unknown;
+    points?: unknown;
+  };
+
+  return (
+    typeof candidate.strokeId === "string" &&
+    (candidate.tool === "brush" || candidate.tool === "eraser") &&
+    typeof candidate.color === "string" &&
+    typeof candidate.size === "number" &&
+    !Number.isNaN(candidate.size) &&
+    typeof candidate.opacity === "number" &&
+    !Number.isNaN(candidate.opacity) &&
+    Array.isArray(candidate.points) &&
+    candidate.points.every(isVectorPoint)
+  );
+}
+
+function isVectorPoint(value: unknown): value is VectorPoint {
+  if (typeof value !== "object" || value == null || Array.isArray(value)) {
+    return false;
+  }
+
+  const candidate = value as { x?: unknown; y?: unknown; pressure?: unknown };
+  return (
+    typeof candidate.x === "number" &&
+    !Number.isNaN(candidate.x) &&
+    typeof candidate.y === "number" &&
+    !Number.isNaN(candidate.y) &&
+    (candidate.pressure == null ||
+      (typeof candidate.pressure === "number" && !Number.isNaN(candidate.pressure)))
+  );
 }
 
 function mapUserRow(row: {

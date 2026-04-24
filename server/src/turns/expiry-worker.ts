@@ -62,9 +62,9 @@ export class TurnExpiryWorker {
     try {
       const nextTurn = this.options.db.submitTurn(artworkId, expiredUserId, "expired");
 
-      this.options.db.createSnapshot(artworkId, "turn_submitted", JSON.stringify({}));
+      this.options.db.createSnapshotFromCurrentState(artworkId, "turn_submitted");
       if (this.options.snapshotEveryTurns > 0 && nextTurn.turnNumber % this.options.snapshotEveryTurns === 0) {
-        this.options.db.createSnapshot(artworkId, "periodic", JSON.stringify({}));
+        this.options.db.createSnapshotFromCurrentState(artworkId, "periodic");
       }
 
       this.options.db.createNotification({

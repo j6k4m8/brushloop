@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math';
 import 'dart:ui' as ui;
 
@@ -766,6 +767,9 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
       case 'server.presence':
         _handlePresence(payload);
         return;
+      case 'server.snapshot':
+        _handleServerSnapshot(payload);
+        return;
       case 'server.operations':
         _handleServerOperations(payload);
         return;
@@ -784,6 +788,31 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
     }
 
     _markCollaborationReady();
+  }
+
+  void _handleServerSnapshot(Map<String, dynamic> payload) {
+    if (payload['artworkId'] != widget.artwork.id) {
+      return;
+    }
+
+    _markCollaborationReady();
+
+    final stateJson = payload['stateJson'];
+    if (stateJson is! String || stateJson.isEmpty) {
+      return;
+    }
+
+    final snapshotStrokes = _decodeSnapshotStrokes(stateJson);
+    if (snapshotStrokes == null) {
+      return;
+    }
+
+    setState(() {
+      _strokes
+        ..clear()
+        ..addAll(snapshotStrokes);
+      _overlayPendingOperations();
+    });
   }
 
   void _handleServerOperations(Map<String, dynamic> payload) {
@@ -875,6 +904,43 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  void _overlayPendingOperations() {
+    for (final operation in _operationTracker.pendingOperationsSnapshot()) {
+      final removedStrokeId = _strokeIdFromRemoveOperation(operation);
+      if (removedStrokeId != null) {
+        _removeStrokeById(removedStrokeId);
+        continue;
+      }
+
+      final stroke = _strokeFromOperation(operation);
+      if (stroke != null) {
+        _upsertStroke(stroke);
+      }
+    }
+  }
+
+  List<CanvasStroke>? _decodeSnapshotStrokes(String stateJson) {
+    try {
+      final decoded = jsonDecode(stateJson);
+      if (decoded is! Map<String, dynamic>) {
+        return null;
+      }
+
+      final strokesRaw = decoded['strokes'];
+      if (strokesRaw is! List<dynamic>) {
+        return null;
+      }
+
+      return strokesRaw
+          .whereType<Map<String, dynamic>>()
+          .map(_strokeFromSnapshotState)
+          .whereType<CanvasStroke>()
+          .toList(growable: false);
+    } catch (_) {
+      return null;
+    }
   }
 
   bool _upsertStroke(CanvasStroke stroke) {
@@ -980,6 +1046,54 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
       color: isEraser
           ? const Color(0x00000000)
           : _parseColor(payload['color'] as String?),
+      size: size.toDouble(),
+      points: points,
+      isEraser: isEraser,
+    );
+  }
+
+  CanvasStroke? _strokeFromSnapshotState(Map<String, dynamic> snapshotStroke) {
+    final strokeId = snapshotStroke['id'];
+    final layerId = snapshotStroke['layerId'];
+    final actorUserId = snapshotStroke['actorUserId'];
+    final size = snapshotStroke['size'];
+    final pointsRaw = snapshotStroke['points'];
+    if (strokeId is! String ||
+        layerId is! String ||
+        actorUserId is! String ||
+        size is! num ||
+        pointsRaw is! List<dynamic>) {
+      return null;
+    }
+
+    final points = <CanvasStrokePoint>[];
+    for (final rawPoint in pointsRaw) {
+      if (rawPoint is! Map<String, dynamic>) {
+        continue;
+      }
+
+      final x = rawPoint['x'];
+      final y = rawPoint['y'];
+      if (x is! num || y is! num) {
+        continue;
+      }
+
+      points.add(CanvasStrokePoint(x: x.toDouble(), y: y.toDouble()));
+    }
+
+    if (points.isEmpty) {
+      return null;
+    }
+
+    final tool = snapshotStroke['tool'];
+    final isEraser = tool == 'eraser';
+    return CanvasStroke(
+      id: strokeId,
+      layerId: layerId,
+      actorUserId: actorUserId,
+      color: isEraser
+          ? const Color(0x00000000)
+          : _parseColor(snapshotStroke['color'] as String?),
       size: size.toDouble(),
       points: points,
       isEraser: isEraser,

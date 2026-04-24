@@ -499,7 +499,7 @@ export function createAppServer(): AppServer {
 
       if (details.currentTurn) {
         if (config.snapshotEveryTurns > 0 && details.currentTurn.turnNumber % config.snapshotEveryTurns === 0) {
-          db.createSnapshot(details.artwork.id, "periodic", JSON.stringify({}));
+          db.createSnapshotFromCurrentState(details.artwork.id, "periodic");
         }
 
         db.createNotification({
@@ -644,9 +644,9 @@ export function createAppServer(): AppServer {
         requiredClientId: payload.requiredClientId,
         requiredSequence: payload.requiredSequence
       });
-      db.createSnapshot(payload.artworkId, "turn_submitted", JSON.stringify({}));
+      db.createSnapshotFromCurrentState(payload.artworkId, "turn_submitted");
       if (config.snapshotEveryTurns > 0 && nextTurn.turnNumber % config.snapshotEveryTurns === 0) {
-        db.createSnapshot(payload.artworkId, "periodic", JSON.stringify({}));
+        db.createSnapshotFromCurrentState(payload.artworkId, "periodic");
       }
       db.createNotification({
         userId: nextTurn.activeParticipantUserId,

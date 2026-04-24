@@ -58,3 +58,4 @@
 - [x] Task 56: Support single-tap dot strokes in brush mode without requiring drag input.
 - [x] Task 57: Increase maximum brush size to 2x current range while keeping minimum size unchanged.
 - [x] Task 58: Prevent turn submission from dropping unsaved drawing operations and harden turn-based persistence.
+- [T] Task 59: Replace empty collaboration snapshots with real persisted artwork state and regression tests.

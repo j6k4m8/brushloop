@@ -187,6 +187,112 @@ test("crdt operations are idempotent for a client sequence", () => {
   db.close();
 });
 
+test("snapshots materialize active strokes instead of empty objects", () => {
+  const dbPath = makeTmpPath("snapshot-state");
+  const db = new BrushloopDatabase(dbPath);
+
+  const user = db.createUser("snapshot@example.com", "Snapshot", hashPassword("password123"));
+  const details = db.createArtwork({
+    title: "Snapshot Art",
+    mode: "real_time",
+    width: 640,
+    height: 480,
+    basePhotoPath: null,
+    createdByUserId: user.id,
+    participantUserIds: [user.id],
+    turnDurationMinutes: null
+  });
+
+  const layerId = details.layers[0]!.id;
+  db.addCrdtOperation({
+    artworkId: details.artwork.id,
+    layerId,
+    actorUserId: user.id,
+    clientId: "snapshot-client",
+    sequence: 1,
+    lamportTs: 10,
+    type: "stroke.add",
+    payload: {
+      strokeId: "stroke-visible",
+      tool: "brush",
+      color: "#112233",
+      size: 7,
+      opacity: 1,
+      points: [
+        { x: 4, y: 5 },
+        { x: 6, y: 7 }
+      ]
+    }
+  });
+  db.addCrdtOperation({
+    artworkId: details.artwork.id,
+    layerId,
+    actorUserId: user.id,
+    clientId: "snapshot-client",
+    sequence: 2,
+    lamportTs: 11,
+    type: "stroke.add",
+    payload: {
+      strokeId: "stroke-removed",
+      tool: "brush",
+      color: "#445566",
+      size: 9,
+      opacity: 1,
+      points: [{ x: 8, y: 9 }]
+    }
+  });
+  db.addCrdtOperation({
+    artworkId: details.artwork.id,
+    layerId,
+    actorUserId: user.id,
+    clientId: "snapshot-client",
+    sequence: 3,
+    lamportTs: 12,
+    type: "stroke.remove",
+    payload: {
+      strokeId: "stroke-removed"
+    }
+  });
+
+  const version = db.createSnapshotFromCurrentState(details.artwork.id, "manual");
+  const snapshot = db.getLatestSnapshot(details.artwork.id);
+
+  assert.equal(version, 1);
+  assert.ok(snapshot);
+  const parsed = JSON.parse(snapshot!.stateJson) as {
+    artworkId?: string;
+    lastLamportTs?: number;
+    strokes?: Array<{
+      id?: string;
+      layerId?: string;
+      actorUserId?: string;
+      tool?: string;
+      color?: string;
+      size?: number;
+      points?: Array<{ x?: number; y?: number }>;
+    }>;
+  };
+
+  assert.equal(parsed.artworkId, details.artwork.id);
+  assert.equal(parsed.lastLamportTs, 12);
+  assert.equal(parsed.strokes?.length, 1);
+  assert.deepEqual(parsed.strokes?.[0], {
+    id: "stroke-visible",
+    layerId,
+    actorUserId: user.id,
+    tool: "brush",
+    color: "#112233",
+    size: 7,
+    opacity: 1,
+    points: [
+      { x: 4, y: 5 },
+      { x: 6, y: 7 }
+    ]
+  });
+
+  db.close();
+});
+
 test("database allows creating a solo artwork", () => {
   const dbPath = makeTmpPath("solo");
   const db = new BrushloopDatabase(dbPath);

@@ -96,5 +96,16 @@ test("TurnExpiryWorker advances expired turns and emits notifications", async ()
   assert.ok(pending.some((item) => item.type === "turn_started"));
   assert.ok(turns.length > 0);
 
+  const snapshot = db.getLatestSnapshot(details.artwork.id);
+  assert.ok(snapshot);
+  const parsed = JSON.parse(snapshot!.stateJson) as {
+    artworkId?: string;
+    lastLamportTs?: number;
+    strokes?: unknown[];
+  };
+  assert.equal(parsed.artworkId, details.artwork.id);
+  assert.equal(Array.isArray(parsed.strokes), true);
+  assert.equal(typeof parsed.lastLamportTs, "number");
+
   db.close();
 });
