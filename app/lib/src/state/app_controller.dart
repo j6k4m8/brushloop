@@ -28,11 +28,9 @@ class ArtworkBasePhotoInput {
 /// Mutable app state and use-case orchestration for the BrushLoop client.
 class AppController extends ChangeNotifier {
   /// Creates an app controller.
-  AppController({
-    required ApiClient apiClient,
-    SessionStorage? sessionStorage,
-  }) : _apiClient = apiClient,
-       _sessionStorage = sessionStorage ?? SharedPreferencesSessionStorage();
+  AppController({required ApiClient apiClient, SessionStorage? sessionStorage})
+    : _apiClient = apiClient,
+      _sessionStorage = sessionStorage ?? SharedPreferencesSessionStorage();
 
   final ApiClient _apiClient;
   final SessionStorage _sessionStorage;
@@ -85,7 +83,9 @@ class AppController extends ChangeNotifier {
       }
 
       _session = persisted;
-      final refreshedUser = await _apiClient.fetchCurrentUser(token: persisted.token);
+      final refreshedUser = await _apiClient.fetchCurrentUser(
+        token: persisted.token,
+      );
       _session = SessionState(
         token: persisted.token,
         user: refreshedUser,
@@ -235,7 +235,9 @@ class AppController extends ChangeNotifier {
 
     await _runBusy(() async {
       final timestamp = DateTime.now().toIso8601String();
-      final modeLabel = mode == ArtworkMode.realTime ? 'Real-time' : 'Turn-based';
+      final modeLabel = mode == ArtworkMode.realTime
+          ? 'Real-time'
+          : 'Turn-based';
       String? basePhotoPath;
 
       if (basePhoto != null) {
@@ -275,14 +277,23 @@ class AppController extends ChangeNotifier {
   }
 
   /// Submits the active turn and refreshes details.
-  Future<ArtworkDetails> submitTurn(String artworkId) async {
+  Future<ArtworkDetails> submitTurn(
+    String artworkId, {
+    String? requiredClientId,
+    int? requiredSequence,
+  }) async {
     final token = _session?.token;
     if (token == null) {
       throw const ApiException(statusCode: 401, message: 'Not authenticated');
     }
 
     await _runBusy(() async {
-      await _apiClient.submitTurn(token: token, artworkId: artworkId);
+      await _apiClient.submitTurn(
+        token: token,
+        artworkId: artworkId,
+        requiredClientId: requiredClientId,
+        requiredSequence: requiredSequence,
+      );
       await _loadHomeData();
     });
 

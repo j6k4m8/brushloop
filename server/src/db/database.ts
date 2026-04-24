@@ -263,6 +263,7 @@ export class BrushloopDatabase {
 
   private applySchemaMigrations(): void {
     this.ensureChatMessageReadAtColumn();
+    this.ensureUniqueCrdtOperationSequenceIndex();
   }
 
   private ensureChatMessageReadAtColumn(): void {
@@ -276,6 +277,13 @@ export class BrushloopDatabase {
     }
 
     this.db.exec("ALTER TABLE chat_messages ADD COLUMN read_at TEXT");
+  }
+
+  private ensureUniqueCrdtOperationSequenceIndex(): void {
+    this.db.exec(
+      `CREATE UNIQUE INDEX IF NOT EXISTS idx_crdt_operations_artwork_actor_client_sequence
+       ON crdt_operations(artwork_id, actor_user_id, client_id, sequence)`
+    );
   }
 
   listPendingInvitationsForUser(userId: Id, email: string): ContactInvitation[] {
@@ -1140,7 +1148,11 @@ export class BrushloopDatabase {
   submitTurn(
     artworkId: Id,
     actorUserId: Id,
-    completionReason: "submitted" | "expired" = "submitted"
+    completionReason: "submitted" | "expired" = "submitted",
+    options: {
+      requiredClientId?: string | null;
+      requiredSequence?: number | null;
+    } = {}
   ): TurnState {
     const mode = this.getArtworkMode(artworkId);
     if (!mode || mode.mode !== "turn_based") {
@@ -1170,6 +1182,19 @@ export class BrushloopDatabase {
 
     if (currentTurn.active_participant_user_id !== actorUserId) {
       throw new Error("only the active participant can submit a turn");
+    }
+
+    if (
+      options.requiredClientId != null &&
+      options.requiredSequence != null &&
+      !this.hasPersistedClientOperationAtOrAfter(
+        artworkId,
+        actorUserId,
+        options.requiredClientId,
+        options.requiredSequence
+      )
+    ) {
+      throw new Error("waiting for drawing sync before submitting the turn");
     }
 
     const participants = this.db
@@ -1362,6 +1387,16 @@ export class BrushloopDatabase {
   }
 
   addCrdtOperation(operation: Omit<CrdtOperation, "id" | "createdAt">): CrdtOperation {
+    const existing = this.getCrdtOperationByClientSequence(
+      operation.artworkId,
+      operation.actorUserId,
+      operation.clientId,
+      operation.sequence
+    );
+    if (existing) {
+      return existing;
+    }
+
     const id = randomUUID();
     const createdAt = nowIso();
 
@@ -1389,6 +1424,23 @@ export class BrushloopDatabase {
       id,
       createdAt
     };
+  }
+
+  hasPersistedClientOperationAtOrAfter(
+    artworkId: Id,
+    actorUserId: Id,
+    clientId: string,
+    requiredSequence: number
+  ): boolean {
+    const row = this.db
+      .prepare(
+        `SELECT MAX(sequence) AS max_sequence
+         FROM crdt_operations
+         WHERE artwork_id = ? AND actor_user_id = ? AND client_id = ?`
+      )
+      .get(artworkId, actorUserId, clientId) as { max_sequence: number | null };
+
+    return (row.max_sequence ?? -1) >= requiredSequence;
   }
 
   getOperationsSince(artworkId: Id, sinceLamportTs: number): CrdtOperation[] {
@@ -1472,6 +1524,52 @@ export class BrushloopDatabase {
       id,
       createdAt,
       ...input
+    };
+  }
+
+  private getCrdtOperationByClientSequence(
+    artworkId: Id,
+    actorUserId: Id,
+    clientId: string,
+    sequence: number
+  ): CrdtOperation | null {
+    const row = this.db
+      .prepare(
+        `SELECT id, artwork_id, layer_id, actor_user_id, client_id, sequence, lamport_ts, type, payload_json, created_at
+         FROM crdt_operations
+         WHERE artwork_id = ? AND actor_user_id = ? AND client_id = ? AND sequence = ?
+         LIMIT 1`
+      )
+      .get(artworkId, actorUserId, clientId, sequence) as
+      | {
+          id: string;
+          artwork_id: string;
+          layer_id: string;
+          actor_user_id: string;
+          client_id: string;
+          sequence: number;
+          lamport_ts: number;
+          type: CrdtOperation["type"];
+          payload_json: string;
+          created_at: string;
+        }
+      | undefined;
+
+    if (!row) {
+      return null;
+    }
+
+    return {
+      id: row.id,
+      artworkId: row.artwork_id,
+      layerId: row.layer_id,
+      actorUserId: row.actor_user_id,
+      clientId: row.client_id,
+      sequence: row.sequence,
+      lamportTs: row.lamport_ts,
+      type: row.type,
+      payload: JSON.parse(row.payload_json) as CrdtOperation["payload"],
+      createdAt: row.created_at
     };
   }
 

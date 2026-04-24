@@ -65,6 +65,128 @@ test("turn submission advances round robin", () => {
   db.close();
 });
 
+test("turn submission waits for the latest persisted client operation", () => {
+  const dbPath = makeTmpPath("turn-sync-guard");
+  const db = new BrushloopDatabase(dbPath);
+
+  const userA = db.createUser("sync-a@example.com", "Sync A", hashPassword("password123"));
+  const userB = db.createUser("sync-b@example.com", "Sync B", hashPassword("password123"));
+
+  db.acceptInvitation(db.createContactInvitation(userA.id, userB.email).id, userB.id);
+
+  const details = db.createArtwork({
+    title: "Turn Sync Guard",
+    mode: "turn_based",
+    width: 100,
+    height: 100,
+    basePhotoPath: null,
+    createdByUserId: userA.id,
+    participantUserIds: [userA.id, userB.id],
+    turnDurationMinutes: null
+  });
+
+  const layerId = details.layers[0]!.id;
+  const clientId = "flutter-sync-client";
+
+  db.addCrdtOperation({
+    artworkId: details.artwork.id,
+    layerId,
+    actorUserId: userA.id,
+    clientId,
+    sequence: 1,
+    lamportTs: 1,
+    type: "stroke.add",
+    payload: {
+      strokeId: "stroke-1",
+      tool: "brush",
+      color: "#111827",
+      size: 8,
+      opacity: 1,
+      points: [{ x: 10, y: 10 }]
+    }
+  });
+
+  assert.throws(
+    () =>
+      db.submitTurn(details.artwork.id, userA.id, "submitted", {
+        requiredClientId: clientId,
+        requiredSequence: 2
+      }),
+    /waiting for drawing sync/
+  );
+
+  db.addCrdtOperation({
+    artworkId: details.artwork.id,
+    layerId,
+    actorUserId: userA.id,
+    clientId,
+    sequence: 2,
+    lamportTs: 2,
+    type: "stroke.add",
+    payload: {
+      strokeId: "stroke-2",
+      tool: "brush",
+      color: "#111827",
+      size: 12,
+      opacity: 1,
+      points: [{ x: 30, y: 30 }]
+    }
+  });
+
+  const nextTurn = db.submitTurn(details.artwork.id, userA.id, "submitted", {
+    requiredClientId: clientId,
+    requiredSequence: 2
+  });
+  assert.equal(nextTurn.activeParticipantUserId, userB.id);
+
+  db.close();
+});
+
+test("crdt operations are idempotent for a client sequence", () => {
+  const dbPath = makeTmpPath("operation-idempotency");
+  const db = new BrushloopDatabase(dbPath);
+
+  const user = db.createUser("ops@example.com", "Ops", hashPassword("password123"));
+  const details = db.createArtwork({
+    title: "Idempotent Ops",
+    mode: "real_time",
+    width: 100,
+    height: 100,
+    basePhotoPath: null,
+    createdByUserId: user.id,
+    participantUserIds: [user.id],
+    turnDurationMinutes: null
+  });
+
+  const layerId = details.layers[0]!.id;
+  const operation = {
+    artworkId: details.artwork.id,
+    layerId,
+    actorUserId: user.id,
+    clientId: "client-1",
+    sequence: 42,
+    lamportTs: 42,
+    type: "stroke.add" as const,
+    payload: {
+      strokeId: "stroke-42",
+      tool: "brush" as const,
+      color: "#111827",
+      size: 8,
+      opacity: 1,
+      points: [{ x: 1, y: 2 }]
+    }
+  };
+
+  const first = db.addCrdtOperation(operation);
+  const second = db.addCrdtOperation(operation);
+  assert.equal(second.id, first.id);
+
+  const persisted = db.getOperationsSince(details.artwork.id, 0);
+  assert.equal(persisted.length, 1);
+
+  db.close();
+});
+
 test("database allows creating a solo artwork", () => {
   const dbPath = makeTmpPath("solo");
   const db = new BrushloopDatabase(dbPath);

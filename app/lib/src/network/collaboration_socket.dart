@@ -6,10 +6,14 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 /// WebSocket wrapper for real-time collaboration messages.
 class CollaborationSocket {
   /// Creates a collaboration socket client.
-  CollaborationSocket({required this.url});
+  CollaborationSocket({required this.url, String? clientId})
+    : clientId = clientId ?? generateClientId();
 
   /// Full websocket URL.
   final String url;
+
+  /// Stable websocket client id for this socket lifecycle.
+  final String clientId;
 
   WebSocketChannel? _channel;
 
@@ -40,7 +44,7 @@ class CollaborationSocket {
     send(<String, dynamic>{
       'type': 'client.hello',
       'token': token,
-      'clientId': _newClientId(),
+      'clientId': clientId,
     });
   }
 
@@ -77,7 +81,8 @@ class CollaborationSocket {
     channel.sink.add(jsonEncode(payload));
   }
 
-  String _newClientId() {
+  /// Generates a random but stable-looking client id for a collaboration session.
+  static String generateClientId() {
     final now = DateTime.now().microsecondsSinceEpoch;
     final random = Random().nextInt(1 << 31);
     return 'flutter-$now-$random';

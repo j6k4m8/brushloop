@@ -5,6 +5,7 @@ import {
   parseCollaborationClientMessage,
   parseCreateArtworkRequest,
   parseLoginRequest,
+  parseSubmitTurnRequest,
   parseSendChatMessageRequest,
   parseUpdateProfileRequest,
   parseUpdateArtworkTitleRequest,
@@ -86,6 +87,29 @@ test("parseUpdateArtworkTitleRequest parses title payload", () => {
   });
 
   assert.equal(parsed.title, "New Artwork Title");
+});
+
+test("parseSubmitTurnRequest parses sync guard payload", () => {
+  const parsed = parseSubmitTurnRequest({
+    artworkId: "art-1",
+    requiredClientId: "client-1",
+    requiredSequence: 42
+  });
+
+  assert.equal(parsed.artworkId, "art-1");
+  assert.equal(parsed.requiredClientId, "client-1");
+  assert.equal(parsed.requiredSequence, 42);
+});
+
+test("parseSubmitTurnRequest requires sync guard fields together", () => {
+  assert.throws(
+    () =>
+      parseSubmitTurnRequest({
+        artworkId: "art-1",
+        requiredClientId: "client-1"
+      }),
+    /must be provided together/
+  );
 });
 
 test("parseSendChatMessageRequest parses body payload", () => {

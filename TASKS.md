@@ -57,3 +57,4 @@
 - [x] Task 55: Fix base-photo rendering by supporting tokenized media URLs for mobile/web image loading.
 - [x] Task 56: Support single-tap dot strokes in brush mode without requiring drag input.
 - [x] Task 57: Increase maximum brush size to 2x current range while keeping minimum size unchanged.
+- [T] Task 58: Prevent turn submission from dropping unsaved drawing operations and harden turn-based persistence.

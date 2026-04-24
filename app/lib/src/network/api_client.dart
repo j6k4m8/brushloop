@@ -8,10 +8,8 @@ import '../core/models.dart';
 /// REST client for BrushLoop server endpoints.
 class ApiClient {
   /// Creates an API client.
-  ApiClient({
-    required this.baseUrl,
-    http.Client? httpClient,
-  }) : _httpClient = httpClient ?? http.Client();
+  ApiClient({required this.baseUrl, http.Client? httpClient})
+    : _httpClient = httpClient ?? http.Client();
 
   /// Base server URL such as `http://127.0.0.1:8787`.
   final String baseUrl;
@@ -43,10 +41,7 @@ class ApiClient {
     final jsonPayload = await _requestJson(
       method: 'POST',
       path: '/api/auth/login',
-      jsonBody: <String, dynamic>{
-        'email': email,
-        'password': password,
-      },
+      jsonBody: <String, dynamic>{'email': email, 'password': password},
     );
     return SessionState.fromJson(jsonPayload);
   }
@@ -98,9 +93,7 @@ class ApiClient {
       method: 'POST',
       path: '/api/contacts/invite',
       token: token,
-      jsonBody: <String, dynamic>{
-        'inviteeEmail': email,
-      },
+      jsonBody: <String, dynamic>{'inviteeEmail': email},
     );
   }
 
@@ -116,8 +109,7 @@ class ApiClient {
 
     return (jsonPayload as List<dynamic>)
         .map(
-          (value) =>
-              PendingInvitation.fromJson(value as Map<String, dynamic>),
+          (value) => PendingInvitation.fromJson(value as Map<String, dynamic>),
         )
         .toList();
   }
@@ -197,9 +189,7 @@ class ApiClient {
       method: 'POST',
       path: '/api/chats/$contactUserId/messages',
       token: token,
-      jsonBody: <String, dynamic>{
-        'body': body,
-      },
+      jsonBody: <String, dynamic>{'body': body},
     );
 
     return ChatMessage.fromJson(payload as Map<String, dynamic>);
@@ -224,8 +214,9 @@ class ApiClient {
         'title': title,
         'mode': mode == ArtworkMode.realTime ? 'real_time' : 'turn_based',
         'participantUserIds': participantUserIds,
-        'firstTurnUserId':
-            mode == ArtworkMode.turnBased ? firstTurnUserId : null,
+        'firstTurnUserId': mode == ArtworkMode.turnBased
+            ? firstTurnUserId
+            : null,
         'width': width,
         'height': height,
         'basePhotoPath': basePhotoPath,
@@ -244,7 +235,9 @@ class ApiClient {
       method: 'POST',
       path: '/api/artworks/$artworkId/layers',
       token: token,
-      jsonBody: name == null ? <String, dynamic>{} : <String, dynamic>{'name': name},
+      jsonBody: name == null
+          ? <String, dynamic>{}
+          : <String, dynamic>{'name': name},
     );
 
     return ArtworkLayer.fromJson(payload as Map<String, dynamic>);
@@ -294,8 +287,8 @@ class ApiClient {
         statusCode: response.statusCode,
         message: payload is Map<String, dynamic>
             ? (payload['message'] as String? ??
-                payload['error'] as String? ??
-                'Media upload failed')
+                  payload['error'] as String? ??
+                  'Media upload failed')
             : 'Media upload failed',
       );
     }
@@ -307,6 +300,8 @@ class ApiClient {
   Future<void> submitTurn({
     required String token,
     required String artworkId,
+    String? requiredClientId,
+    int? requiredSequence,
   }) async {
     await _requestJson(
       method: 'POST',
@@ -314,6 +309,8 @@ class ApiClient {
       token: token,
       jsonBody: <String, dynamic>{
         'artworkId': artworkId,
+        'requiredClientId': requiredClientId,
+        'requiredSequence': requiredSequence,
       },
     );
   }
@@ -355,8 +352,8 @@ class ApiClient {
         statusCode: response.statusCode,
         message: payload is Map<String, dynamic>
             ? (payload['message'] as String? ??
-                payload['error'] as String? ??
-                'Request failed')
+                  payload['error'] as String? ??
+                  'Request failed')
             : 'Request failed',
       );
     }
@@ -368,10 +365,7 @@ class ApiClient {
 /// Exception thrown for non-success API responses.
 class ApiException implements Exception {
   /// Creates an API exception.
-  const ApiException({
-    required this.statusCode,
-    required this.message,
-  });
+  const ApiException({required this.statusCode, required this.message});
 
   /// HTTP status code.
   final int statusCode;
@@ -380,5 +374,6 @@ class ApiException implements Exception {
   final String message;
 
   @override
-  String toString() => 'ApiException(statusCode: $statusCode, message: $message)';
+  String toString() =>
+      'ApiException(statusCode: $statusCode, message: $message)';
 }

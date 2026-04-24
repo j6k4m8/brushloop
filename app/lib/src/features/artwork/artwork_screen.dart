@@ -8,6 +8,7 @@ import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 
 import '../../core/app_config.dart';
 import '../../core/models.dart';
+import 'collaboration_operation_tracker.dart';
 import '../../network/collaboration_socket.dart';
 import '../../state/app_controller.dart';
 import '../../ui/studio_theme.dart';
@@ -35,6 +36,8 @@ class ArtworkScreen extends StatefulWidget {
 class _ArtworkScreenState extends State<ArtworkScreen> {
   static const double _minBrushSize = 2;
   static const double _maxBrushSize = 72;
+  static const Duration _pendingSyncTimeout = Duration(seconds: 5);
+  static const Duration _socketReconnectDelay = Duration(seconds: 1);
 
   ArtworkDetails? _details;
   String? _selectedLayerId;
@@ -50,7 +53,8 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
   Color _brushColor = const Color(0xFF111827);
   bool _showMobileInspectorPane = false;
   final GlobalKey _canvasBoundaryKey = GlobalKey();
-  final TransformationController _viewportController = TransformationController();
+  final TransformationController _viewportController =
+      TransformationController();
   Size _lastViewportSize = Size.zero;
   Size _lastArtworkSize = Size.zero;
   bool _viewportNeedsFit = true;
@@ -61,21 +65,34 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
   bool _showBrushSizePreview = false;
   Offset? _brushPreviewPosition;
   Timer? _brushPreviewHideTimer;
+  Timer? _socketReconnectTimer;
 
+  late final String _socketClientId;
+  late final CollaborationOperationTracker _operationTracker;
+  final List<Completer<void>> _pendingSyncWaiters = <Completer<void>>[];
   CollaborationSocket? _socket;
   StreamSubscription<Map<String, dynamic>>? _messageSubscription;
+  bool _collaborationReady = false;
+  bool _disposed = false;
 
   @override
   void initState() {
     super.initState();
+    _socketClientId = CollaborationSocket.generateClientId();
+    _operationTracker = CollaborationOperationTracker(
+      clientId: _socketClientId,
+    );
     _loadDetails();
     _connectSocket();
   }
 
   @override
   void dispose() {
+    _disposed = true;
     _messageSubscription?.cancel();
     _brushPreviewHideTimer?.cancel();
+    _socketReconnectTimer?.cancel();
+    _resolvePendingSyncWaiters();
     if (_socket case final socket?) {
       socket.leaveArtwork(widget.artwork.id);
       socket.disconnect();
@@ -91,17 +108,21 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
     });
 
     try {
-      final details = await widget.controller.loadArtworkDetails(widget.artwork.id);
+      final details = await widget.controller.loadArtworkDetails(
+        widget.artwork.id,
+      );
       if (!mounted) {
         return;
       }
 
       setState(() {
         _details = details;
-        _selectedLayerId = details.layers.firstWhere(
-          (layer) => !layer.isLocked,
-          orElse: () => details.layers.first,
-        ).id;
+        _selectedLayerId = details.layers
+            .firstWhere(
+              (layer) => !layer.isLocked,
+              orElse: () => details.layers.first,
+            )
+            .id;
         _viewportNeedsFit = true;
       });
     } catch (error) {
@@ -122,17 +143,142 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
 
   void _connectSocket() {
     final token = widget.controller.session?.token;
-    if (token == null) {
+    if (token == null || _disposed || _socket != null) {
       return;
     }
 
-    final socket = CollaborationSocket(url: AppConfig.wsUrl);
+    final socket = CollaborationSocket(
+      url: AppConfig.wsUrl,
+      clientId: _socketClientId,
+    );
     socket.connect(token: token);
     socket.joinArtwork(widget.artwork.id);
 
-    _messageSubscription = socket.messages.listen(_handleSocketMessage);
+    _messageSubscription = socket.messages.listen(
+      _handleSocketMessage,
+      onDone: _handleSocketDisconnected,
+      onError: (Object error, StackTrace stackTrace) =>
+          _handleSocketDisconnected(),
+    );
 
     _socket = socket;
+  }
+
+  void _handleSocketDisconnected() {
+    if (_disposed) {
+      return;
+    }
+
+    final socket = _socket;
+    _socket = null;
+    _messageSubscription = null;
+    socket?.disconnect();
+
+    if (mounted && _collaborationReady) {
+      setState(() {
+        _collaborationReady = false;
+      });
+    } else {
+      _collaborationReady = false;
+    }
+
+    _scheduleSocketReconnect();
+  }
+
+  void _scheduleSocketReconnect() {
+    if (_disposed || _socketReconnectTimer != null) {
+      return;
+    }
+
+    _socketReconnectTimer = Timer(_socketReconnectDelay, () {
+      _socketReconnectTimer = null;
+      if (_disposed) {
+        return;
+      }
+      _connectSocket();
+    });
+  }
+
+  void _markCollaborationReady() {
+    if (_disposed) {
+      return;
+    }
+
+    final wasReady = _collaborationReady;
+    _collaborationReady = true;
+    if (mounted && !wasReady) {
+      setState(() {});
+    }
+
+    _flushPendingOperations();
+  }
+
+  void _flushPendingOperations() {
+    final socket = _socket;
+    if (socket == null || !_collaborationReady) {
+      return;
+    }
+
+    if (!_operationTracker.hasPendingOperations) {
+      _resolvePendingSyncWaiters();
+      return;
+    }
+
+    socket.send(<String, dynamic>{
+      'type': 'client.apply_operations',
+      'artworkId': widget.artwork.id,
+      'operations': _operationTracker.pendingOperationsSnapshot(),
+    });
+  }
+
+  void _queueOperation(Map<String, dynamic> operation) {
+    _operationTracker.queue(operation);
+    _flushPendingOperations();
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  Future<void> _waitForPendingOperationsSync() async {
+    if (!_operationTracker.hasPendingOperations) {
+      return;
+    }
+
+    final waiter = Completer<void>();
+    _pendingSyncWaiters.add(waiter);
+    _flushPendingOperations();
+    if (!_operationTracker.hasPendingOperations) {
+      _resolvePendingSyncWaiters();
+    }
+
+    try {
+      await waiter.future.timeout(_pendingSyncTimeout);
+    } on TimeoutException {
+      _pendingSyncWaiters.remove(waiter);
+      if (_collaborationReady) {
+        throw StateError(
+          'BrushLoop is still saving your turn. Wait a moment and try again.',
+        );
+      }
+
+      throw StateError(
+        'Drawing sync is offline. Reconnect before ending your turn.',
+      );
+    }
+  }
+
+  void _resolvePendingSyncWaiters() {
+    if (_pendingSyncWaiters.isEmpty) {
+      return;
+    }
+
+    final waiters = List<Completer<void>>.of(_pendingSyncWaiters);
+    _pendingSyncWaiters.clear();
+    for (final waiter in waiters) {
+      if (!waiter.isCompleted) {
+        waiter.complete();
+      }
+    }
   }
 
   bool get _canEdit {
@@ -199,7 +345,8 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
 
     if (details.pointerCount >= 2) {
       final strokeToCommit = !_pinchSizingActive ? _activeStroke : null;
-      final shouldCommitStroke = strokeToCommit != null && strokeToCommit.points.length > 1;
+      final shouldCommitStroke =
+          strokeToCommit != null && strokeToCommit.points.length > 1;
       setState(() {
         if (!_pinchSizingActive) {
           _pinchSizingActive = true;
@@ -216,8 +363,9 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
         _sendStrokeOperation(strokeToCommit);
       }
 
-      final updatedSize =
-          (_pinchInitialBrushSize * details.scale).clamp(_minBrushSize, _maxBrushSize).toDouble();
+      final updatedSize = (_pinchInitialBrushSize * details.scale)
+          .clamp(_minBrushSize, _maxBrushSize)
+          .toDouble();
       _setBrushSizeAndPreview(
         updatedSize,
         localPosition: details.localFocalPoint,
@@ -376,55 +524,43 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
   }
 
   void _sendStrokeOperation(CanvasStroke stroke) {
-    _socket?.send(<String, dynamic>{
-      'type': 'client.apply_operations',
+    final sequence = _operationTracker.nextSequence();
+    _queueOperation(<String, dynamic>{
+      'id': _newOperationId(),
       'artworkId': widget.artwork.id,
-      'operations': <Map<String, dynamic>>[
-        <String, dynamic>{
-          'id': _newOperationId(),
-          'artworkId': widget.artwork.id,
-          'layerId': stroke.layerId,
-          'actorUserId': widget.controller.session?.user.id,
-          'clientId': 'flutter-client',
-          'sequence': DateTime.now().microsecondsSinceEpoch,
-          'lamportTs': DateTime.now().millisecondsSinceEpoch,
-          'type': stroke.isEraser ? 'stroke.erase' : 'stroke.add',
-          'payload': <String, dynamic>{
-            'strokeId': stroke.id,
-            'tool': stroke.isEraser ? 'eraser' : 'brush',
-            'color':
-                '#${stroke.color.toARGB32().toRadixString(16).padLeft(8, '0')}',
-            'size': stroke.size,
-            'opacity': 1,
-            'points': stroke.points
-                .map((point) => <String, dynamic>{'x': point.x, 'y': point.y})
-                .toList(),
-          },
-        },
-      ],
+      'layerId': stroke.layerId,
+      'actorUserId': widget.controller.session?.user.id,
+      'clientId': _socketClientId,
+      'sequence': sequence,
+      'lamportTs': DateTime.now().millisecondsSinceEpoch,
+      'type': stroke.isEraser ? 'stroke.erase' : 'stroke.add',
+      'payload': <String, dynamic>{
+        'strokeId': stroke.id,
+        'tool': stroke.isEraser ? 'eraser' : 'brush',
+        'color':
+            '#${stroke.color.toARGB32().toRadixString(16).padLeft(8, '0')}',
+        'size': stroke.size,
+        'opacity': 1,
+        'points': stroke.points
+            .map((point) => <String, dynamic>{'x': point.x, 'y': point.y})
+            .toList(),
+      },
     });
   }
 
   /// Broadcasts stroke removal as a collaborative undo operation.
   void _sendStrokeRemoveOperation(CanvasStroke stroke) {
-    _socket?.send(<String, dynamic>{
-      'type': 'client.apply_operations',
+    final sequence = _operationTracker.nextSequence();
+    _queueOperation(<String, dynamic>{
+      'id': _newOperationId(),
       'artworkId': widget.artwork.id,
-      'operations': <Map<String, dynamic>>[
-        <String, dynamic>{
-          'id': _newOperationId(),
-          'artworkId': widget.artwork.id,
-          'layerId': stroke.layerId,
-          'actorUserId': widget.controller.session?.user.id,
-          'clientId': 'flutter-client',
-          'sequence': DateTime.now().microsecondsSinceEpoch,
-          'lamportTs': DateTime.now().millisecondsSinceEpoch,
-          'type': 'stroke.remove',
-          'payload': <String, dynamic>{
-            'strokeId': stroke.id,
-          },
-        },
-      ],
+      'layerId': stroke.layerId,
+      'actorUserId': widget.controller.session?.user.id,
+      'clientId': _socketClientId,
+      'sequence': sequence,
+      'lamportTs': DateTime.now().millisecondsSinceEpoch,
+      'type': 'stroke.remove',
+      'payload': <String, dynamic>{'strokeId': stroke.id},
     });
   }
 
@@ -435,7 +571,16 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
     }
 
     try {
-      final refreshed = await widget.controller.submitTurn(details.artwork.id);
+      _finalizeActiveStrokeIfNeeded();
+      await _waitForPendingOperationsSync();
+
+      final refreshed = await widget.controller.submitTurn(
+        details.artwork.id,
+        requiredClientId: _operationTracker.latestTrackedSequence == null
+            ? null
+            : _socketClientId,
+        requiredSequence: _operationTracker.latestTrackedSequence,
+      );
       if (!mounted) {
         return;
       }
@@ -446,10 +591,29 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString())),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.toString())));
     }
+  }
+
+  void _finalizeActiveStrokeIfNeeded() {
+    if (_pinchSizingActive) {
+      return;
+    }
+
+    final activeStroke = _activeStroke;
+    if (activeStroke == null) {
+      return;
+    }
+
+    setState(() {
+      _upsertStroke(activeStroke);
+      _activeStroke = null;
+      _redoBuffer.clear();
+    });
+
+    _sendStrokeOperation(activeStroke);
   }
 
   Future<void> _renameArtworkTitle(ArtworkDetails details) async {
@@ -511,9 +675,9 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
     }
 
     if (pendingTitle.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Title cannot be empty')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Title cannot be empty')));
       return;
     }
 
@@ -597,6 +761,11 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
 
   void _handleSocketMessage(Map<String, dynamic> payload) {
     switch (payload['type']) {
+      case 'server.hello_ack':
+        return;
+      case 'server.presence':
+        _handlePresence(payload);
+        return;
       case 'server.operations':
         _handleServerOperations(payload);
         return;
@@ -609,10 +778,20 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
     }
   }
 
+  void _handlePresence(Map<String, dynamic> payload) {
+    if (payload['artworkId'] != widget.artwork.id) {
+      return;
+    }
+
+    _markCollaborationReady();
+  }
+
   void _handleServerOperations(Map<String, dynamic> payload) {
     if (payload['artworkId'] != widget.artwork.id) {
       return;
     }
+
+    _markCollaborationReady();
 
     final operations = payload['operations'];
     if (operations is! List<dynamic>) {
@@ -620,10 +799,15 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
     }
 
     var changed = false;
+    var syncStateChanged = false;
     for (final operation in operations) {
       if (operation is! Map<String, dynamic>) {
         continue;
       }
+
+      syncStateChanged =
+          _operationTracker.acknowledgeServerOperation(operation) ||
+          syncStateChanged;
 
       final removedStrokeId = _strokeIdFromRemoveOperation(operation);
       if (removedStrokeId != null) {
@@ -639,7 +823,13 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
       changed = _upsertStroke(stroke) || changed;
     }
 
-    if (changed && mounted) {
+    if (!_operationTracker.hasPendingOperations) {
+      _resolvePendingSyncWaiters();
+    } else if (syncStateChanged) {
+      _flushPendingOperations();
+    }
+
+    if ((changed || syncStateChanged) && mounted) {
       setState(() {});
     }
   }
@@ -649,6 +839,8 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
     if (details == null || payload['artworkId'] != details.artwork.id) {
       return;
     }
+
+    _markCollaborationReady();
 
     final activeParticipantUserId = payload['activeParticipantUserId'];
     final turnNumber = payload['turnNumber'];
@@ -680,13 +872,15 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   bool _upsertStroke(CanvasStroke stroke) {
-    final existingIndex = _strokes.indexWhere((candidate) => candidate.id == stroke.id);
+    final existingIndex = _strokes.indexWhere(
+      (candidate) => candidate.id == stroke.id,
+    );
     if (existingIndex >= 0) {
       final existing = _strokes[existingIndex];
       if (_strokesEqual(existing, stroke)) {
@@ -702,7 +896,9 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
 
   bool _removeStrokeById(String strokeId) {
     var changed = false;
-    final existingIndex = _strokes.indexWhere((candidate) => candidate.id == strokeId);
+    final existingIndex = _strokes.indexWhere(
+      (candidate) => candidate.id == strokeId,
+    );
     if (existingIndex >= 0) {
       _strokes.removeAt(existingIndex);
       changed = true;
@@ -944,9 +1140,9 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not add layer: $error')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not add layer: $error')));
     }
   }
 
@@ -962,50 +1158,50 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
             child: _loading
                 ? const Center(child: CircularProgressIndicator())
                 : _error != null
-                    ? Center(
-                        child: Text(
-                          _error!,
-                          style: const TextStyle(color: StudioPalette.textMuted),
-                        ),
-                      )
-                    : details == null
-                        ? const Center(
-                            child: Text(
-                              'Artwork details unavailable',
-                              style: TextStyle(color: StudioPalette.textMuted),
-                            ),
-                          )
-                        : LayoutBuilder(
-                            builder: (context, constraints) {
-                              final wideLayout = constraints.maxWidth >= 1120;
+                ? Center(
+                    child: Text(
+                      _error!,
+                      style: const TextStyle(color: StudioPalette.textMuted),
+                    ),
+                  )
+                : details == null
+                ? const Center(
+                    child: Text(
+                      'Artwork details unavailable',
+                      style: TextStyle(color: StudioPalette.textMuted),
+                    ),
+                  )
+                : LayoutBuilder(
+                    builder: (context, constraints) {
+                      final wideLayout = constraints.maxWidth >= 1120;
 
-                              return Column(
-                                children: <Widget>[
-                                  _buildTopToolbar(
-                                    details,
-                                    showInspectorToggle: !wideLayout,
-                                  ),
-                                  const SizedBox(height: 6),
-                                  _buildQuickToolRow(),
-                                  const SizedBox(height: 6),
-                                  Expanded(
-                                    child: wideLayout
-                                        ? Row(
-                                            children: <Widget>[
-                                              Expanded(child: _buildCanvas(details)),
-                                              const SizedBox(width: 8),
-                                              SizedBox(
-                                                width: 300,
-                                                child: _buildControlsPanel(details),
-                                              ),
-                                            ],
-                                          )
-                                        : _buildMobileWorkspace(details),
-                                  ),
-                                ],
-                              );
-                            },
+                      return Column(
+                        children: <Widget>[
+                          _buildTopToolbar(
+                            details,
+                            showInspectorToggle: !wideLayout,
                           ),
+                          const SizedBox(height: 6),
+                          _buildQuickToolRow(),
+                          const SizedBox(height: 6),
+                          Expanded(
+                            child: wideLayout
+                                ? Row(
+                                    children: <Widget>[
+                                      Expanded(child: _buildCanvas(details)),
+                                      const SizedBox(width: 8),
+                                      SizedBox(
+                                        width: 300,
+                                        child: _buildControlsPanel(details),
+                                      ),
+                                    ],
+                                  )
+                                : _buildMobileWorkspace(details),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
           ),
         ),
       ),
@@ -1020,9 +1216,16 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
     final waitingName = turn == null
         ? 'participant'
         : _displayNameForUserId(turn.activeParticipantUserId);
-    final turnButtonLabel = _canEdit
-        ? 'Submit Turn'
-        : 'Waiting for $waitingName';
+    final turnButtonLabel = !_canEdit
+        ? 'Waiting for $waitingName'
+        : _operationTracker.hasPendingOperations
+        ? (_collaborationReady ? 'Syncing…' : 'Reconnect to Submit')
+        : 'Submit Turn';
+    final turnButtonIcon = !_canEdit
+        ? Icons.hourglass_bottom
+        : _operationTracker.hasPendingOperations
+        ? (_collaborationReady ? Icons.sync : Icons.cloud_off)
+        : Icons.check;
     final descriptor = _artworkDescriptor(details);
     return StudioPanel(
       color: StudioPalette.chrome,
@@ -1075,13 +1278,16 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
               padding: const EdgeInsets.only(right: 8),
               child: Text(
                 'Turn ${turn.turnNumber}',
-                style: const TextStyle(fontSize: 12, color: StudioPalette.textMuted),
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: StudioPalette.textMuted,
+                ),
               ),
             ),
           if (details.artwork.mode == ArtworkMode.turnBased)
             StudioButton(
               label: turnButtonLabel,
-              icon: _canEdit ? Icons.check : Icons.hourglass_bottom,
+              icon: turnButtonIcon,
               onPressed: _canEdit ? _submitTurn : null,
             ),
           if (showInspectorToggle) ...<Widget>[
@@ -1133,13 +1339,45 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
       return 'Private artwork';
     }
 
-    final collaboratorNames = collaboratorIds.map(_displayNameForUserId).toList();
-    final modeLabel =
-        details.artwork.mode == ArtworkMode.realTime ? 'Real-time' : 'Turn-based';
+    final collaboratorNames = collaboratorIds
+        .map(_displayNameForUserId)
+        .toList();
+    final modeLabel = details.artwork.mode == ArtworkMode.realTime
+        ? 'Real-time'
+        : 'Turn-based';
     if (collaboratorNames.length == 1) {
       return '$modeLabel with ${collaboratorNames.first}';
     }
     return '$modeLabel with ${collaboratorNames.first} +${collaboratorNames.length - 1}';
+  }
+
+  String _collaborationStatusLabel() {
+    if (_operationTracker.hasPendingOperations) {
+      final pendingCount = _operationTracker.pendingCount;
+      if (_collaborationReady) {
+        return 'Sync: saving $pendingCount change${pendingCount == 1 ? '' : 's'}…';
+      }
+
+      return 'Sync offline: $pendingCount local change${pendingCount == 1 ? '' : 's'} waiting to upload';
+    }
+
+    if (_collaborationReady) {
+      return 'Sync: all changes saved';
+    }
+
+    return 'Sync offline: new strokes stay local until reconnection';
+  }
+
+  Color _collaborationStatusColor() {
+    if (_operationTracker.hasPendingOperations) {
+      return _collaborationReady
+          ? const Color(0xFFFACC15)
+          : const Color(0xFFF97316);
+    }
+
+    return _collaborationReady
+        ? const Color(0xFF86EFAC)
+        : StudioPalette.textMuted;
   }
 
   Widget _buildQuickToolRow() {
@@ -1161,7 +1399,10 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: _brushColor,
-                    border: Border.all(color: StudioPalette.textStrong, width: 2),
+                    border: Border.all(
+                      color: StudioPalette.textStrong,
+                      width: 2,
+                    ),
                   ),
                 ),
               ),
@@ -1202,10 +1443,7 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
                 min: _minBrushSize,
                 max: _maxBrushSize,
                 onChanged: (value) {
-                  _setBrushSizeAndPreview(
-                    value,
-                    autoHide: true,
-                  );
+                  _setBrushSizeAndPreview(value, autoHide: true);
                 },
               ),
             ),
@@ -1315,7 +1553,10 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
                     children: <Widget>[
                       const Text(
                         'Color Picker',
-                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                       const SizedBox(height: 10),
                       ColorPicker(
@@ -1377,7 +1618,9 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
 
     try {
       final image = await renderObject.toImage(pixelRatio: 1);
-      final byteData = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
+      final byteData = await image.toByteData(
+        format: ui.ImageByteFormat.rawRgba,
+      );
       if (byteData == null) {
         image.dispose();
         return;
@@ -1412,9 +1655,9 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
         return;
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Eyedropper unavailable: $error')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Eyedropper unavailable: $error')));
     }
   }
 
@@ -1455,7 +1698,10 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final viewportSize = Size(constraints.maxWidth, constraints.maxHeight);
+          final viewportSize = Size(
+            constraints.maxWidth,
+            constraints.maxHeight,
+          );
           final viewportChanged = _lastViewportSize != viewportSize;
           final artworkChanged = _lastArtworkSize != artworkSize;
           if (_viewportNeedsFit || viewportChanged || artworkChanged) {
@@ -1496,7 +1742,8 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
                       child: Stack(
                         fit: StackFit.expand,
                         children: <Widget>[
-                          if (details.artwork.basePhotoPath case final photoPath?)
+                          if (details.artwork.basePhotoPath
+                              case final photoPath?)
                             IgnorePointer(
                               child: Image.network(
                                 _resolveMediaUrl(
@@ -1514,7 +1761,8 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
                             activeStroke: _activeStroke,
                             visibleLayerIds: visibleLayerIds,
                             layerOrder: layerOrder,
-                            canEdit: _tool == _EditorTool.eyedropper ||
+                            canEdit:
+                                _tool == _EditorTool.eyedropper ||
                                 (_canEdit && _tool != _EditorTool.pan),
                             onScaleStart: _onScaleStart,
                             onScaleUpdate: _onScaleUpdate,
@@ -1586,14 +1834,9 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
       ..scaleByDouble(scale, scale, 1, 1);
   }
 
-  String _resolveMediaUrl(
-    String pathOrUrl, {
-    bool includeAuthToken = false,
-  }) {
+  String _resolveMediaUrl(String pathOrUrl, {bool includeAuthToken = false}) {
     if (pathOrUrl.startsWith('http://') || pathOrUrl.startsWith('https://')) {
-      return includeAuthToken
-          ? _appendSessionToken(pathOrUrl)
-          : pathOrUrl;
+      return includeAuthToken ? _appendSessionToken(pathOrUrl) : pathOrUrl;
     }
 
     final base = AppConfig.apiBaseUrl.endsWith('/')
@@ -1637,6 +1880,8 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
   Widget _buildCollaborationSection(ArtworkDetails details) {
     final turn = details.currentTurn;
     final activeUser = turn?.activeParticipantUserId;
+    final syncStatusLabel = _collaborationStatusLabel();
+    final syncStatusColor = _collaborationStatusColor();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1653,9 +1898,19 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
             child: Text(
               'Turn ${turn.turnNumber}: ${activeUser ?? 'Unknown'}\n'
               'Due: ${turn.dueAt ?? 'No timer'}',
-              style: const TextStyle(fontSize: 12, color: StudioPalette.textMuted),
+              style: const TextStyle(
+                fontSize: 12,
+                color: StudioPalette.textMuted,
+              ),
             ),
           ),
+        Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Text(
+            syncStatusLabel,
+            style: TextStyle(fontSize: 12, color: syncStatusColor),
+          ),
+        ),
       ],
     );
   }
@@ -1703,12 +1958,19 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
                           : StudioPalette.border,
                     ),
                   ),
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 6,
+                  ),
                   child: Row(
                     children: <Widget>[
                       StudioIconButton(
-                        icon: layer.isVisible ? Icons.visibility : Icons.visibility_off,
-                        onPressed: layer.isLocked ? null : () => _toggleLayerVisibility(layer),
+                        icon: layer.isVisible
+                            ? Icons.visibility
+                            : Icons.visibility_off,
+                        onPressed: layer.isLocked
+                            ? null
+                            : () => _toggleLayerVisibility(layer),
                       ),
                       const SizedBox(width: 6),
                       Expanded(
@@ -1723,7 +1985,11 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
                         ),
                       ),
                       if (layer.isLocked)
-                        const Icon(Icons.lock_outline, size: 15, color: StudioPalette.textMuted),
+                        const Icon(
+                          Icons.lock_outline,
+                          size: 15,
+                          color: StudioPalette.textMuted,
+                        ),
                     ],
                   ),
                 ),
@@ -1747,9 +2013,4 @@ class _ArtworkScreenState extends State<ArtworkScreen> {
   }
 }
 
-enum _EditorTool {
-  brush,
-  eraser,
-  eyedropper,
-  pan,
-}
+enum _EditorTool { brush, eraser, eyedropper, pan }

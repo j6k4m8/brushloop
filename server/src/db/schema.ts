@@ -171,6 +171,8 @@ CREATE INDEX IF NOT EXISTS idx_ops_artwork_lamport ON crdt_operations(artwork_id
 CREATE INDEX IF NOT EXISTS idx_snapshots_artwork_version ON snapshots(artwork_id, version_number);
 CREATE INDEX IF NOT EXISTS idx_notifications_user_delivered ON notifications(user_id, delivered_at);
 CREATE INDEX IF NOT EXISTS idx_media_assets_owner ON media_assets(owner_user_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_crdt_operations_artwork_actor_client_sequence
+  ON crdt_operations(artwork_id, actor_user_id, client_id, sequence);
 CREATE INDEX IF NOT EXISTS idx_chat_messages_sender_recipient_created
   ON chat_messages(sender_user_id, recipient_user_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_chat_messages_recipient_sender_created

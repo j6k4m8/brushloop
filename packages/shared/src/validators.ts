@@ -122,8 +122,30 @@ export function parseCreateArtworkRequest(input: unknown): CreateArtworkRequest 
 export function parseSubmitTurnRequest(input: unknown): SubmitTurnRequest {
   assertObject(input, "submit turn request");
 
+  const requiredClientId = input.requiredClientId;
+  const requiredSequence = input.requiredSequence;
+  const hasRequiredClientId = requiredClientId != null;
+  const hasRequiredSequence = requiredSequence != null;
+  if (hasRequiredClientId != hasRequiredSequence) {
+    throw new Error("requiredClientId and requiredSequence must be provided together");
+  }
+
+  if (
+    hasRequiredSequence &&
+    (typeof requiredSequence !== "number" ||
+        !Number.isInteger(requiredSequence) ||
+        requiredSequence < 0)
+  ) {
+    throw new Error("requiredSequence must be a non-negative integer when provided");
+  }
+
   return {
-    artworkId: requireString(input.artworkId, "artworkId")
+    artworkId: requireString(input.artworkId, "artworkId"),
+    requiredClientId:
+        requiredClientId == null
+            ? null
+            : requireString(requiredClientId, "requiredClientId"),
+    requiredSequence: requiredSequence == null ? null : requiredSequence
   };
 }
 

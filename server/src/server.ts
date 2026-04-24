@@ -640,7 +640,10 @@ export function createAppServer(): AppServer {
     const payload = parseSubmitTurnRequest(await readJsonBody(req));
 
     try {
-      const nextTurn = db.submitTurn(payload.artworkId, auth.user.id);
+      const nextTurn = db.submitTurn(payload.artworkId, auth.user.id, "submitted", {
+        requiredClientId: payload.requiredClientId,
+        requiredSequence: payload.requiredSequence
+      });
       db.createSnapshot(payload.artworkId, "turn_submitted", JSON.stringify({}));
       if (config.snapshotEveryTurns > 0 && nextTurn.turnNumber % config.snapshotEveryTurns === 0) {
         db.createSnapshot(payload.artworkId, "periodic", JSON.stringify({}));

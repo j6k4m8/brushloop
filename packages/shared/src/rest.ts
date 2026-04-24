@@ -42,6 +42,8 @@ export interface CreateArtworkRequest {
 
 export interface SubmitTurnRequest {
   artworkId: Id;
+  requiredClientId?: string | null;
+  requiredSequence?: number | null;
 }
 
 export interface UpdateArtworkTitleRequest {
